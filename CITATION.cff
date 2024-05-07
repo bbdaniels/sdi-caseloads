@@ -1,0 +1,11 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+- family-names: "Daniels"
+  given-names: "Benjamin"
+  orcid: "https://orcid.org/0000-0001-9652-6653"
+title: "PROJECT TITLE"
+version: 1.0.0
+doi: "ZENODO LINK"
+date-released: 2022-11-11
+url: "https://github.com/bbdaniels/PROJECT-NAME"
