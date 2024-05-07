@@ -15,7 +15,9 @@ ssc install repkit, replace
     set scheme uncluttered , perm
     graph set eps fontface "Helvetica"
 
-  cap ssc install iefieldkit
+  cap ssc install iefieldkit , replace
+  cap ssc install cdfplot , replace
+  cap net install grc1leg , from("http://www.stata.com/users/vwiggins/") replace
 
   net from "https://github.com/bbdaniels/stata/raw/main/"
 
@@ -44,6 +46,27 @@ ssc install repkit, replace
   global pct `" 0 "0%" .25 "25%" .5 "50%" .75 "75%" 1 "100%" "'
   global numbering `""(1)" "(2)" "(3)" "(4)" "(5)" "(6)" "(7)" "(8)" "(9)" "(10)""'
   global bar lc(white) lw(thin) la(center) fi(100)
+
+// Copy in raw data -- comment out in final package
+
+  iecodebook export "${box}/comparison.dta" ///
+    using "${git}/data/comparison.xlsx" ///
+    , replace save sign verify
+
+  copy "${box}/All_countries_harm.dta" ///
+     "${git}/data/vignettes.dta" ///
+    , replace
+
+  iecodebook export "${box}/All_countries_pl.dta" ///
+    using "${git}/data/vignettes-provider.xlsx" ///
+    , replace save sign verify
+
+  iecodebook export "${box}/IRT_parameters.dta" ///
+    using "${git}/data/irt-parameters.xlsx" ///
+    , replace save sign reset
+
+  copy "${box}/provider-codebook.xlsx" ///
+    "${git}/data/provider-codebook.xlsx" , replace
 
 // Run code past here
 
