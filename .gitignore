@@ -15,6 +15,7 @@
 # Keep markdown files used for documentation on GitHub
 !README.md
 !CONTRIBUTING.md
+!reproot.yaml
 
 #######################
 # For performance reasons, if a folder is already ignored, then

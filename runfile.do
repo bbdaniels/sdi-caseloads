@@ -1,10 +1,10 @@
 // Set global path locations
-  
+
 ssc install repkit, replace
 
   cap ssc install repkit
     repado using "${git}/ado"
-    reproot, project("projectname") roots("box git")
+    reproot, project("sdi-caseloads") roots("box git")
 
 // Set up schemes and user-installed packages
 
