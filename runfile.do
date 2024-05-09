@@ -18,6 +18,7 @@ ssc install repkit, replace
   cap ssc install iefieldkit , replace
   cap ssc install cdfplot , replace
   cap net install grc1leg , from("http://www.stata.com/users/vwiggins/") replace
+  cap net install binsreg , from("https://raw.githubusercontent.com/nppackages/binsreg/master/stata")
 
   net from "https://github.com/bbdaniels/stata/raw/main/"
 
@@ -51,7 +52,7 @@ ssc install repkit, replace
 
   iecodebook export "${box}/comparison.dta" ///
     using "${git}/data/comparison.xlsx" ///
-    , replace save sign verify
+    , replace save sign reset
 
   copy "${box}/All_countries_harm.dta" ///
      "${git}/data/vignettes.dta" ///
@@ -59,7 +60,7 @@ ssc install repkit, replace
 
   iecodebook export "${box}/All_countries_pl.dta" ///
     using "${git}/data/vignettes-provider.xlsx" ///
-    , replace save sign verify
+    , replace save sign reset
 
   iecodebook export "${box}/IRT_parameters.dta" ///
     using "${git}/data/irt-parameters.xlsx" ///

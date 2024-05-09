@@ -3,7 +3,7 @@
 **************************************************
 
 // Calculate new capacity per day at each provider based on resorting
-use "${git}/data/capacity.dta", clear
+use "${git}/constructed/capacity.dta", clear
   drop if hf_type == . | hf_outpatient == 0
   gen cap = hf_outpatient/(60*hf_staff_op)
     drop if cap == .
@@ -177,10 +177,10 @@ qui {
     egen c = rowmean(treat?)
     reg c c.irt_old##i.country
 
-  save "${git}/data/capacity-optimized.dta" , replace
+  save "${git}/constructed/capacity-optimized.dta" , replace
 
 // Prepare dataset for comparative statistics
-use "${git}/data/capacity-optimized.dta" , clear
+use "${git}/constructed/capacity-optimized.dta" , clear
   tempfile all
 
   preserve
@@ -215,7 +215,7 @@ use "${git}/data/capacity-optimized.dta" , clear
     replace x = "Knowledge" if x == "_old"
     replace x = "Correct" if x == "_xxx"
 
-  save "${git}/data/capacity-comparison.dta" , replace
+  save "${git}/constructed/capacity-comparison.dta" , replace
 
 **************************************************
 // Part 4: Doctor resampling
@@ -224,7 +224,7 @@ use "${git}/data/capacity-optimized.dta" , clear
 clear
 tempfile all
   save `all' , emptyok
-use "${git}/data/capacity-optimized.dta" , clear
+use "${git}/constructed/capacity-optimized.dta" , clear
 gen uid = _n
 
 gen doctor = (cadre == 1)
@@ -252,14 +252,14 @@ foreach c in `cs' {
 
 }
 use `all' , clear
-save "${git}/data/optimize-doctors-basis.dta" , replace
+save "${git}/constructed/optimize-doctors-basis.dta" , replace
 
 cap prog drop upskill
 prog def upskill
 
 args frac
 
-    use "${git}/data/optimize-doctors-basis.dta" , clear
+    use "${git}/constructed/optimize-doctors-basis.dta" , clear
 
     gen r = runiform()
       replace r = 0 if doctor == 1
@@ -291,6 +291,6 @@ tempfile all
       save `all' , replace
     }
   }
-  save "${git}/data/optimize-doctors-done.dta" , replace
+  save "${git}/constructed/optimize-doctors-done.dta" , replace
 
 //

@@ -34,7 +34,6 @@
 !/**/*.do
 !/**/*.ado
 !/**/*.dtasig
-!/constructed/*.dta
 
 # R
 !/**/*.R

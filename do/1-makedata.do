@@ -20,7 +20,7 @@
 **************************************/
 
   *Open harmonized dataset
-  use  "${git}/raw/vignettes.dta", clear
+  use  "${git}/data/vignettes.dta", clear
 
   *Isolate the variables in which the dataset is unique
   keep  cy country year facility_id provider_id unique_id  /// unique identifiers
@@ -54,7 +54,7 @@
 **************************************/
 
   *Merge varibles needed to provider level dataset
-  merge 1:1 country year unique_id using "${git}/raw/vignettes-provider.dta"
+  merge 1:1 country year unique_id using "${git}/data/vignettes-provider.dta"
 
   *Check that there are no unmatched observations
   assert  _merge!= 1
@@ -89,7 +89,7 @@
   gen   unique_id2 = cy + "_" + unique_id
 
   sort   unique_id2
-  merge   1:1 unique_id2 using "${git}/raw/irt-parameters.dta", keepusing(theta_mle)
+  merge   1:1 unique_id2 using "${git}/data/irt-parameters.dta", keepusing(theta_mle)
   drop   if _merge != 3     // drop providers that did not make the final merged module dataset
   drop   _merge unique_id2   // these variables are not needed anymore
 
@@ -236,10 +236,16 @@
       gpslat_all gpslong_all
 
   // Magic
-  iecodebook apply using "${git}/raw/provider-codebook.xlsx" , drop
+  iecodebook apply using "${git}/data/provider-codebook.xlsx" , drop
 
   // Recode occupation by education
   replace cadre = 1 if cadre == 4 & inlist(provider_mededuc1,3,4)
+
+  // Staff count
+  bys country year hf_id : gen temp = _N
+    clonevar hf_op_count = hf_staff_op
+    replace hf_staff_op = temp
+    drop temp
 
   *Order the variables
   isid country year hf_id prov_id, sort
@@ -247,8 +253,9 @@
     lab var uid "Unique ID"
   order uid country year hf_id prov_id , first
 
+
   *Save final dataset with new variables added
-  save "${git}/data/capacity.dta", replace
+  save "${git}/constructed/capacity.dta", replace
 
 
 ************************ End of do-file *****************************************

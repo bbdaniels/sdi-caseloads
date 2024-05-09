@@ -1,9 +1,12 @@
 // Figures for paper
 
 // Summary table: Sectoral shares and statistics
-use "${git}/data/capacity.dta", clear
+use "${git}/constructed/capacity.dta", clear
 
-  gen hf_outpatient_day = hf_outpatient/60
+  // keep if hf_staff_op < 10
+  replace hf_staff_op = hf_op_count * (hf_absent) if hf_staff_op == 10
+
+  gen hf_outpatient_day = hf_outpatient/90
   clonevar cap_old = hf_outpatient_day
   clonevar irt_old = irt
 
@@ -35,15 +38,15 @@ use "${git}/data/capacity.dta", clear
 
   export excel ///
     country level hf_outpatient_day hf_staff_op c2 t n irt_old  ///
-  using "${git}/output/t-summary-capacity.xlsx" ///
+  using "${git}/outputs/main/t-summary-capacity.xlsx" ///
   , replace first(varl)
 
 // Tables of comparative statistics
-  use "${git}/data/capacity-comparison.dta" , replace
+  use "${git}/constructed/capacity-comparison.dta" , replace
 
   foreach var in irt smean dmean {
     preserve
-    use "${git}/data/capacity.dta", clear
+    use "${git}/constructed/capacity.dta", clear
       egen correct = rowmean(treat?)
       ren irt `var'
       reg correct `var' i.country
@@ -74,7 +77,7 @@ use "${git}/data/capacity.dta", clear
   , replace first(var)
 
 // Figure. Descriptive statistics for facilities
-use "${git}/data/capacity.dta", clear
+use "${git}/constructed/capacity.dta", clear
   drop if hf_outpatient == . | hf_outpatient == 0 | hf_staff_op == 0
 
   collapse (mean) hf_outpatient hf_staff_op (count) n = hf_outpatient  ///
@@ -107,7 +110,7 @@ use "${git}/data/capacity.dta", clear
     graph export "${git}/output/f-descriptives.png" , replace
 
 // Cumulative Capacity
-use "${git}/data/capacity.dta", clear
+use "${git}/constructed/capacity.dta", clear
 
   gen hf_outpatient_day = hf_outpatient/60
   gen hf_inpatient_day = hf_inpatient/60
@@ -138,7 +141,7 @@ use "${git}/data/capacity.dta", clear
       graph export "${git}/output/f-capacity-staff.png" , replace
 
 // Setup: Current comparator for optimization
-use "${git}/data/capacity.dta", clear
+use "${git}/constructed/capacity.dta", clear
 
   gen hf_outpatient_day = hf_outpatient/60
   gen hf_inpatient_day = hf_inpatient/60
@@ -182,13 +185,13 @@ use "${git}/data/capacity.dta", clear
 // Figure: Vizualizations for correctness
 **************************************************
 
-use "${git}/data/capacity-comparison.dta", clear
+use "${git}/constructed/capacity-comparison.dta", clear
 
   keep irt dmean smean country x
   reshape wide irt dmean smean, i(country) j(x) string
   decode country, gen(ccode)
 
-  append using "${git}/data/capacity-optimized.dta"
+  append using "${git}/constructed/capacity-optimized.dta"
   egen correct = rowmean(treat?)
 
   tw (fpfitci correct irt_old ///
@@ -226,7 +229,7 @@ use "${git}/data/capacity-comparison.dta", clear
 **************************************************
 
 // Create optimized allocation images
-use "${git}/data/capacity-optimized.dta", clear
+use "${git}/constructed/capacity-optimized.dta", clear
 
   binsreg  cap_old irt_old if irt_old > -2 & irt_old < 2 ///
     , polyreg(2) by(country) ysize(8) nbins(10) ///
@@ -236,18 +239,18 @@ use "${git}/data/capacity-optimized.dta", clear
         order(1 "Kenya" 3 "Madagascar" 5 "Malawi" 7 "Mozambique" 9 "Niger" ///
               11 "Nigeria" 13 "Sierra Leone" 15 "Tanzania" 17 "Togo" 19 "Uganda") )
 
-    graph save "${git}/temp/f-optimization-1.gph" , replace
+    graph save "${git}/outputs/temp/f-optimization-1.gph" , replace
 
   binsreg  cap_hftype irt_hftype if irt_hftype > -2 & irt_hftype < 2 ///
     , polyreg(2) by(country) legend(on pos(3) c(1)) ysize(8) nbins(10) ///
       xscale(noline) yscale(noline) xtit("Provider Competence") title("Reallocated") ytit("Daily Outpatient Caseload") ///
       bysymbols(o o o o o o o o o o )  bycolors(blue cranberry cyan dkgreen dkorange emerald gold lavender magenta maroon navy red)
 
-    graph save "${git}/temp/f-optimization-2.gph" , replace
+    graph save "${git}/outputs/temp/f-optimization-2.gph" , replace
 
   grc1leg ///
-    "${git}/temp/f-optimization-1.gph" ///
-    "${git}/temp/f-optimization-2.gph" , ycom
+    "${git}/outputs/temp/f-optimization-1.gph" ///
+    "${git}/outputs/temp/f-optimization-2.gph" , ycom
 
     graph draw, ysize(6)
 
@@ -257,12 +260,12 @@ use "${git}/data/capacity-optimized.dta", clear
 **************************************************
 // Figure: Meta-analytical comparison
 **************************************************
-use "${git}/data/capacity.dta", clear
+use "${git}/constructed/capacity.dta", clear
   egen correct = rowmean(treat?)
   ren irt irt_new
   reg correct irt_new i.country
 
-use "${git}/data/optimize-doctors-done.dta" , clear
+use "${git}/constructed/optimize-doctors-done.dta" , clear
   keep if f == float(0.95)
   predict correct
   collapse (mean) effect_size = correct (p95) _meta_ciu = correct (p5) _meta_cil = correct , by(country)
@@ -270,7 +273,7 @@ use "${git}/data/optimize-doctors-done.dta" , clear
   tempfile docs
     save `docs'
 
-use "${git}/data/capacity-comparison.dta" , clear
+use "${git}/constructed/capacity-comparison.dta" , clear
 
   keep if x == "Knowledge"
   gen region = "  Average Across Reallocation Simulations"
@@ -280,7 +283,7 @@ use "${git}/data/capacity-comparison.dta" , clear
 
   foreach var in irt smean _meta_ciu _meta_cil  {
     preserve
-    use "${git}/data/capacity.dta", clear
+    use "${git}/constructed/capacity.dta", clear
       egen correct = rowmean(treat?)
       ren irt `var'
       reg correct `var' i.country
@@ -306,7 +309,7 @@ use "${git}/data/capacity-comparison.dta" , clear
 
   keep country region _meta_ciu _meta_cil effect_size
 
-  append using "${git}/data/comparison.dta" , gen(sgroup)
+  append using "${git}/constructed/comparison.dta" , gen(sgroup)
 
   decode country, gen(temp)
     replace CountryName = temp if temp !=""
@@ -372,6 +375,6 @@ use "${git}/data/capacity-comparison.dta" , clear
 
   gen check = 1
   replace effect_size=effect_size*100
-  save "${git}/data/optimize-comparison.dta" , replace
+  save "${git}/constructed/optimize-comparison.dta" , replace
 
 // End

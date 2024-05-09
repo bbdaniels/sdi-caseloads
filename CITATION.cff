@@ -6,6 +6,6 @@ authors:
   orcid: "https://orcid.org/0000-0001-9652-6653"
 title: "PROJECT TITLE"
 version: 1.0.0
-doi: "ZENODO LINK"
+doi: "https://doi.org/10.5281/zenodo.11130652
 date-released: 2022-11-11
 url: "https://github.com/bbdaniels/sdi-caseloads"

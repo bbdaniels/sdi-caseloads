@@ -1,5 +1,5 @@
 // Figure. Caseload by facility-provider w absenteeism
-use "${git}/data/capacity.dta", clear
+use "${git}/constructed/capacity.dta", clear
   drop if hf_outpatient == . | hf_outpatient == 0 | hf_staff_op == 0
   duplicates drop country hf_id , force
 
@@ -17,7 +17,7 @@ use "${git}/data/capacity.dta", clear
 
 
 // Figure. Caseload by facility
-use "${git}/data/capacity.dta", clear
+use "${git}/constructed/capacity.dta", clear
   drop if hf_outpatient == . | hf_outpatient == 0 | hf_staff_op == 0
   duplicates drop country hf_id , force
   gen x = hf_outpatient/90
@@ -39,7 +39,7 @@ use "${git}/data/capacity.dta", clear
 
 // Figure. Descriptive statistics for facilities by sector
 
-use "${git}/data/capacity.dta", clear
+use "${git}/constructed/capacity.dta", clear
   drop if hf_outpatient == . | hf_outpatient == 0 | hf_staff_op == 0
     gen hf_outpatient_day = hf_outpatient/60
 
@@ -64,7 +64,7 @@ use "${git}/data/capacity.dta", clear
   graph export "${git}/appendix/af-descriptives.png" , width(3000) replace
 
 // Calculate new quality
-use "${git}/data/capacity-optimized.dta", clear
+use "${git}/constructed/capacity-optimized.dta", clear
 tempfile all
 
   preserve
@@ -108,7 +108,7 @@ tempfile all
     graph export "${git}/appendix/af-optimize-differences.png" , width(3000) replace
 
 // Figure: Provider upskilling
-use "${git}/data/optimize-doctors-done.dta" , clear
+use "${git}/constructed/optimize-doctors-done.dta" , clear
 
   replace f = f*100
   graph box irt_new ///
