@@ -1,25 +1,4 @@
-* ******************************************************************** *
-* ******************************************************************** *
-*                                                                      *
-*                Merge variables                       *
-*        Provider ID                        *
-*                                                                      *
-* ******************************************************************** *
-* ******************************************************************** *
-/*
-    ** PURPOSE: Merge variables to the appended
-
-       ** IDS VAR: country year facility_id provider_id
-       ** NOTES:
-       ** WRITTEN BY:      Michael Orevba
-       ** Last date modified:   July 2nd 2021
- */
-
-/*************************************
-    Harmonized dataset
-**************************************/
-
-  *Open harmonized dataset
+*Open harmonized dataset
   use  "${git}/data/vignettes.dta", clear
 
   *Isolate the variables in which the dataset is unique
@@ -242,20 +221,38 @@
   replace cadre = 1 if cadre == 4 & inlist(provider_mededuc1,3,4)
 
   // Staff count
-  bys country year hf_id : gen temp = _N
-    clonevar hf_op_count = hf_staff_op
-    replace hf_staff_op = temp
-    drop temp
+  bys country year hf_id : gen hf_provs = _N
+    lab var hf_provs "Observed Providers"
 
   *Order the variables
   isid country year hf_id prov_id, sort
   egen uid = group(country year hf_id prov_id)
-    lab var uid "Unique ID"
-  order uid country year hf_id prov_id , first
+    lab var uid "Provider ID"
+  egen fid = group(country year hf_id)
+    lab var fid "Facility ID"
+  order country year fid uid hf_id prov_id , first
 
+  drop if hf_outpatient == 0
+  gen cap = hf_outpatient/(60*hf_provs)
+    lab var cap "Outpatients per Provider Day"
 
   *Save final dataset with new variables added
   save "${git}/constructed/capacity.dta", replace
+  use "${git}/constructed/capacity.dta", clear
+
+*  Create facility level dataset
+
+  replace hf_provs = 1
+    lab var hf_provs "Observed Providers"
+  labelcollapse (sum) hf_provs (firstnm) country year hf_staff_op hf_outpatient hf_type , by(fid) vallab(country)
+
+  gen cap = hf_outpatient/(60)
+    lab var cap "Outpatients per Facility Day"
+
+  gen cap_prov = hf_outpatient/(60*hf_provs)
+    lab var cap "Outpatients per Provider Day"
+
+  save "${git}/constructed/capacity-fac.dta", replace
 
 
 ************************ End of do-file *****************************************

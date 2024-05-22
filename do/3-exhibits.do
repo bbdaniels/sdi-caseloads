@@ -1,7 +1,66 @@
 // Figures for paper
 
-// Summary table: Sectoral shares and statistics
-use "${git}/constructed/capacity.dta", clear
+// Summary table: Country-facility crowding for small facilities
+use "${git}/constructed/capacity-fac.dta" if hf_staff_op <=10, clear
+
+  bys country: gen weight = 1/_N
+
+  expand 2 , gen(check)
+    replace country = 1 if check == 1
+
+    bys country: gen count = _N
+
+  mean count, over(country)
+    mat a = r(table)'
+    mat a = a[1...,1]
+    mat results = a
+
+  mean hf_staff_op, over(country)
+    mat a = r(table)'
+    mat a = a[1...,1]
+    mat results = results, a
+
+  mean hf_provs , over(country)
+    mat a = r(table)'
+    mat a = a[1...,1]
+    mat results = results, a
+
+  mean cap , over(country)
+    mat a = r(table)'
+    mat a = a[1...,1]
+    mat results = results, a
+
+  mean cap [aweight=cap] , over(country)
+    mat a = r(table)'
+    mat a = a[1...,1]
+    mat results = results, a
+
+  mean cap_prov [fweight=hf_provs], over(country)
+    mat a = r(table)'
+    mat a = a[1...,1]
+    mat results = results, a
+
+  gen w2 = cap_prov*hf_provs
+  mean cap_prov [aweight=w2], over(country)
+    mat a = r(table)'
+    mat a = a[1...,1]
+    mat results = results, a
+
+  matlist results
+  mat results_STARS = J(rowsof(results),colsof(results),0)
+
+  outwrite results ///
+    using "${git}/outputs/main/t-summary-capacity.xlsx" ///
+  , replace ///
+    rownames("Total" "Kenya" "Madagascar" "Malawi" "Mozambique" "Niger" ///
+             "Nigeria" "Sierra Leone" "Tanzania" "Togo" "Uganda") ///
+    colnames("Facilities (N)" "Providers per Facility" "Providers Present" ///
+             "Patients per Facility Day" "(Average Patient)" ///
+             "Patients per Provider Day" "(Average Patient)")
+
+* ------- NEW EOF --------
+--------------------------
+
 
   // keep if hf_staff_op < 10
   replace hf_staff_op = hf_op_count * (hf_absent) if hf_staff_op == 10

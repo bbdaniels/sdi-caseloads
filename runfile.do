@@ -21,6 +21,7 @@ ssc install repkit, replace
   cap net install binsreg , from("https://raw.githubusercontent.com/nppackages/binsreg/master/stata")
 
   net from "https://github.com/bbdaniels/stata/raw/main/"
+    cap net install outwrite
 
 // Globals
 
