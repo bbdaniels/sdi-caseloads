@@ -3,7 +3,7 @@
 ssc install repkit, replace
 
   cap ssc install repkit
-    reproot, project("sdi-caseloads") roots("box git")
+    reproot, project("sdi-caseloads") roots("box git") clear
     repado using "${git}/ado"
 
 // Set up schemes and user-installed packages
