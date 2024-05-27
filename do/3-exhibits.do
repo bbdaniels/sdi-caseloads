@@ -1,9 +1,7 @@
-// Figures for paper
+// Figures/tables for paper
 
 // Summary table: Country-facility crowding for small facilities
-use "${git}/constructed/capacity-fac.dta" if hf_staff_op <=10, clear
-
-  bys country: gen weight = 1/_N
+use "${git}/constructed/capacity-fac.dta" , clear // if hf_provs <10
 
   expand 2 , gen(check)
     replace country = 1 if check == 1
@@ -57,6 +55,193 @@ use "${git}/constructed/capacity-fac.dta" if hf_staff_op <=10, clear
     colnames("Facilities (N)" "Providers per Facility" "Providers Present" ///
              "Patients per Facility Day" "(Average Patient)" ///
              "Patients per Provider Day" "(Average Patient)")
+
+
+// Summary figure: Country-facility variation for small facilities
+
+use "${git}/constructed/capacity.dta" if hf_staff_op <=10, clear
+
+  gen c2 = hf_outpatient/60
+  egen tag = tag(fid)
+
+  lab var cap "Average Provider"
+  graph hbox cap , over(country) noout saving("${git}/outputs/temp/g1.gph" , replace) nodraw note(" ") ///
+      box(1 , lc(black) lw(thin)) ///
+      marker(1, m(p) mc(black) msize(tiny)) medtype(cline) medline(lc(red) lw(medthick)) ///
+      inten(0) cwhi lines(lw(thin) lc(black))
+  lab var c2 "Average Facility"
+  graph hbox c2 if tag == 1 , over(country) noout saving("${git}/outputs/temp/gf.gph" , replace) nodraw note(" ") ///
+      box(1 , lc(black) lw(thin)) ///
+      marker(1, m(p) mc(black) msize(tiny)) medtype(cline) medline(lc(red) lw(medthick)) ///
+      inten(0) cwhi lines(lw(thin) lc(black))
+  lab var cap "Average Patient"
+  graph hbox cap [aweight=cap], over(country) noout saving("${git}/outputs/temp/g2.gph" , replace) nodraw note(" ") ///
+      box(1 , lc(black) lw(thin)) ///
+      marker(1, m(p) mc(black) msize(tiny)) medtype(cline) medline(lc(red) lw(medthick)) ///
+      inten(0) cwhi lines(lw(thin) lc(black))
+
+  graph combine ///
+    "${git}/outputs/temp/g1.gph" ///
+    "${git}/outputs/temp/gf.gph" ///
+    "${git}/outputs/temp/g2.gph" ///
+  , ysize(6) c(1) xcom imargins(none)
+
+  graph export "${git}/outputs/main/f-summary-capacity.png" , replace
+
+// Summary figure: Country-facility variation for (sm)all facilities
+
+use "${git}/constructed/capacity-fac.dta" , clear //if hf_staff_op <=10
+
+  replace hf_staff_op = 11 if hf_staff_op > 10
+
+  tw (scatter  hf_provs hf_staff_op if hf_staff_op > 0 & hf_provs < 10  ///
+      , jitter(7) msize(vtiny) m(.) mc(black)) ///
+     (scatter hf_provs hf_staff_op if hf_staff_op > 0 & hf_provs >= 10  ///
+         , jitter(7) msize(vtiny) m(.) mc(red)) ///
+  , xlab(0 " " 1(1)9 10 11 ">10" 12 " ") ylab(0 " "  1(1)10 11 " ")
+
+  graph export "${git}/outputs/main/f-facility-capacity.png" , replace
+
+// Summary figure: Correlations in data between caseload and competence
+
+use "${git}/constructed/capacity.dta" , clear // if hf_staff_op <=10
+
+  egen treat = rowmean(treat?)
+
+  levelsof country, local(c)
+  local x = 0
+  local legend ""
+  qui foreach country in `c' {
+    local ++x
+    local ++x
+    local label : label (country) `country'
+    reg cap treat if country == `country' , cl(fid)
+      local b = _b[treat]
+        local b : di %3.2f `b'
+      local p = r(table)[4,1]
+        local p : di %3.2f `p'
+
+    local legend `"`legend' `x' "`label': `b' (p=`p')"  "'
+  }
+
+  binsreg  cap treat, by(country) polyreg(1) ///
+    legend(on symxsize(small) pos(12) c(2) ///
+      order(`legend') size(vsmall)) ///
+    dotsplotopt(m(.)) ysize(6) xoverhang ///
+    xlab(${pct}) xtit("Vignettes Correctly Treated") ///
+    ytit("Patients per Provider Day")
+
+    graph export "${git}/outputs/main/f-raw-correlations.png" , replace
+
+// Summary figure: Correlations in data between caseload and competence (Optimized)
+use "${git}/constructed/capacity.dta", clear
+
+  bys country: gen weight = 1/_N
+  keep if cap != . & irt != .
+  drop if hf_type == .
+
+  qui forv i = 1/7 {
+    logit treat`i' c.irt##i.country
+      predict p`i' , pr
+    gen x`i' = !missing(p`i')
+  }
+
+  egen x = rowtotal(x?)
+  egen p = rowtotal(p?)
+   gen treat = p/x
+
+  mean treat [pweight=cap*weight]
+    mat a = r(table)
+    local old = a[1,1]
+
+  keep treat country hf_type weight irt cap
+
+  bys country hf_type (irt): gen srno = _n
+    tempfile irtrank
+    save `irtrank'
+  drop srno
+  ren (irt treat cap) (irt_old treat_old cap_old)
+
+  bys country hf_type (cap_old): gen srno = _n
+    merge 1:1 country hf_type srno using `irtrank'
+
+  mean treat [pweight=cap_old*weight]
+   mat a = r(table)
+   local new = a[1,1]
+
+  tw (histogram treat , w(.0625) start(0) gap(10) lw(none) fc(gs12) yaxis(2) percent) ///
+    (lowess cap_old treat , lc(black) lw(thick)) ///
+    (lowess cap_old treat_old , lp(dash) lw(thick) lc(black)) ///
+    (pci 0 `new' 20 `new' , yaxis(2) lc(black) lw(thick)) ///
+    (pci 0 `old' 20 `old' , yaxis(2) lc(black) lw(thick) lp(dash)) ///
+  ,  yscale(alt) yscale(alt  axis(2)) ytitle("Percentage of Providers (Histogram)" , axis(2)) ///
+    ytitle("Patients per Provider Day") xtit("Share of Vignettes Correct (Vertical Lines = Means)") ///
+    legend(on pos(12) order(3 "Observed in Survey" 2 "Optimal Provider Allocation") size(small) region(lp(blank))) ///
+    ylab(0(100)600) ylab(0(5)20 , axis(2)) xlab(${pct})
+
+    graph export "${git}/outputs/main/f-optimization.png" , replace
+
+  tw ///
+    (kdensity treat_old [aweight=cap_old*weight] , lc(black) lw(thick) lp(dash)) ///
+    (kdensity treat [aweight=cap_old*weight] , lc(black) lw(thick)) ///
+    (pci 0 `new' 3 `new' , yaxis(2) lc(black) lw(thick)) ///
+    (pci 0 `old' 3 `old' , yaxis(2) lc(black) lw(thick) lp(dash)) ///
+    , legend(on pos(12) size(small) order(1 "Observed in Survey" 2 "Optimal Patient Distribution")) ///
+      ytit("Density of Patient Distribution") xtit("Share of Vignettes Correct (Vertical Lines = Means)") xlab(${pct}) xoverhang
+
+      graph export "${git}/outputs/main/f-optimization-pat.png" , replace
+
+// Cumulative Capacity
+use "${git}/constructed/capacity.dta", clear
+
+  gen c2 = .
+  forv i = 2/11 {
+    xtile temp = cap if country == `i' , n(100)
+    replace c2 = temp if country == `i'
+    drop temp
+  }
+
+  gen val = 1
+    replace val = 2 if c2 < 81
+    replace val = 3 if c2 < 61
+
+  collapse (sum) cap , by(country val)
+    bys country : egen tot = sum(cap)
+    gen pct = cap/tot
+
+  graph hbar pct , over(val) over(country) asy stack ///
+    legend(on pos(12) symxsize(small) order (1 "20% Busiest Providers" 2 "Next 20%" 3 "Bottom 60%") r(1)) ///
+    ytitle("Share of Total Outpatients") ylab(${pct}) blab(bar, pos(center) format(%9.2f) ) ///
+    bar(1 , fc(gs12) lc(black)) bar(2 , fc(gs14) lc(black)) bar(3 , fc(gs16) lc(black))
+
+    graph export "${git}/outputs/main/f-distribution-pat.png" , replace
+
+**************************************************
+// Figure: Vizualizations for correctness
+**************************************************
+
+use "${git}/constructed/capacity-comparison.dta", clear
+
+  drop smean
+  ren irt_unrest smean
+  keep irt smean country x
+  reshape wide irt smean, i(country) j(x) string
+  decode country, gen(ccode)
+
+  append using "${git}/constructed/capacity-optimized.dta"
+  egen correct = rowmean(treat?)
+
+  tw (fpfitci correct irt_old ///
+      if irt_old > -1 & irt_old < 3 , lc(black) fc(gray) alc(white%0)) ///
+    (pcarrow irtCorrect irtKnowledge smeanCorrect smeanKnowledge ///
+      ,  ml(country) mlabang(20) lc(red) mc(red) mlabc(black) mlabpos(2)) ///
+    , ytit("Vignettes Correct Before and After Reallocation") ylab(0 "0%" .2 "20%" .4 "40%" .6 "60%" .8 "80%") ///
+      xtit("Average Interaction Competence Before and After Reallocation") ///
+      legend(on r(1) pos(7) order(2 "Overall Mean" 3 "Actual by Country") ring(0)) ///
+      title("Quality Gains from Provider Reallocation")
+
+    graph export "${git}/outputs/main/f-optimization-change.png" , replace
+
 
 * ------- NEW EOF --------
 --------------------------
@@ -168,272 +353,5 @@ use "${git}/constructed/capacity.dta", clear
   graph combine "${git}/temp/fac.gph" "${git}/temp/pro.gph"  , ysize(6) c(1) imargin(none)
     graph export "${git}/output/f-descriptives.png" , replace
 
-// Cumulative Capacity
-use "${git}/constructed/capacity.dta", clear
-
-  gen hf_outpatient_day = hf_outpatient/60
-  gen hf_inpatient_day = hf_inpatient/60
-  clonevar cap_old = hf_outpatient_day
-  clonevar theta_mle = irt
-  gen check = hf_outpatient_day/hf_staff_op
-
-  keep check country_string
-
-  replace check = 1 if check < 1
-  replace check = 160 if check >= 160 & check != .
-
-  cdfplot check  ///
-  , by(country_string) xlog xscale(log) xlab(1 2 5 10 20 40 80 160, labsize(small) notick) ///
-    legend(on c(3) pos(6) size(small) )  ysize(5) scale(0.75) xscale(noline ) yscale(noline ) ///
-    ylab(0 "100%" .25 "75%" .5 "50%" .75 "25%" 1 "0%" , notick) ///
-    ytit("Share of providers seeing...") xtit("... more than X patients daily") ///
-      xline(2 5 10 40 80 , lc(gs14) lw(thin)) ///
-      yline(.25 .75 , lc(gs14) lw(thin)) ///
-      xline(1 20 160 , lc(black) lw(thin)) ///
-      yline(0 .5 1 , lc(black) lw(thin)) ///
-    opt1( yscale(reverse)  ///
-      lc(blue cranberry cyan dkgreen dkorange emerald gold lavender magenta maroon navy red )) ///
-    legend( region(lc(none)) ring(0) c(1) pos(1) ///
-      order(1 "Kenya" 2 "Madagascar" 3 "Malawi" 4 "Mozambique" 5 "Niger" ///
-            6 "Nigeria" 7 "Sierra Leone" 8 "Tanzania" 9 "Togo" 10 "Uganda"))
-
-      graph export "${git}/output/f-capacity-staff.png" , replace
-
-// Setup: Current comparator for optimization
-use "${git}/constructed/capacity.dta", clear
-
-  gen hf_outpatient_day = hf_outpatient/60
-  gen hf_inpatient_day = hf_inpatient/60
-  clonevar cap_old = hf_outpatient_day
-  clonevar theta_mle = irt
-  gen check = hf_outpatient_day/hf_staff_op
-  bys country: gen weight = 1/_N
-
-  keep if check != . & theta_mle != .
-  keep theta_mle check country hf_type weight
-
-  mean theta_mle [pweight=check*weight]
-    mat a = r(table)
-    local old = a[1,1]
-
-  bys country hf_type (theta_mle): gen srno = _n
-    tempfile irtrank
-    save `irtrank'
-  drop srno
-  ren theta_mle theta_old
-  bys country hf_type (check): gen srno = _n
-    merge 1:1 country hf_type srno using `irtrank'
-
-  mean theta_mle [pweight=check*weight]
-   mat a = r(table)
-   local new = a[1,1]
-
-  tw (histogram theta_mle , w(0.5) start(-5) gap(10) lw(none) fc(gs12) yaxis(2) percent) ///
-    (fpfit check theta_mle [pweight=weight], lc(black) lw(thick)) ///
-    (fpfit check theta_old [pweight=weight], lp(dash) lw(thick) lc(black)) ///
-    (pci 0 `new' 25 `new' , yaxis(2) lc(black) lw(thick)) ///
-    (pci 0 `old' 25 `old' , yaxis(2) lc(black) lw(thick) lp(dash)) ///
-  ,  yscale(alt) yscale(alt  axis(2)) ytitle("Percentage of Providers (Histogram)" , axis(2)) ///
-    ytitle("Average Patients per Day") xtit("Vignettes Competence (Vertical Lines = Means)") ///
-    legend(on pos(12) order(3 "Original Assignment" 2 "Reallocated by Country/Sector") size(small) region(lp(blank))) ///
-    xlab(-5(1)5) ylab(0 50 100 150 200 250 300) ylab(0(5)25 , axis(2))
-
-    graph export "${git}/output/f-optimize-providers.png" , replace
-
-**************************************************
-// Figure: Vizualizations for correctness
-**************************************************
-
-use "${git}/constructed/capacity-comparison.dta", clear
-
-  keep irt dmean smean country x
-  reshape wide irt dmean smean, i(country) j(x) string
-  decode country, gen(ccode)
-
-  append using "${git}/constructed/capacity-optimized.dta"
-  egen correct = rowmean(treat?)
-
-  tw (fpfitci correct irt_old ///
-      if irt_old > -1 & irt_old < 3 , lc(black) fc(gray) alc(white%0)) ///
-    (pcarrow irtCorrect irtKnowledge dmeanCorrect dmeanKnowledge ///
-      , ml(country) mlabang(20) lc(red) mc(red) mlabc(black) mlabpos(2)) ///
-    , ytit("Vignettes Correct Before and After Reallocation") ylab(0 "0%" .2 "20%" .4 "40%" .6 "60%" .8 "80%") ///
-      xtit("Average Interaction Competence Before and After Reallocation") ///
-      legend(on r(1) pos(7) order(2 "Theoretical" 3 "Actual") ring(0)) ///
-      title("Demand-Side Patient Reallocation")
-
-      graph save "${git}/temp/f-optimization-demand.gph" , replace
-
-  tw (fpfitci correct irt_old ///
-      if irt_old > -1 & irt_old < 3 , lc(black) fc(gray) alc(white%0)) ///
-    (pcarrow irtCorrect irtKnowledge smeanCorrect smeanKnowledge ///
-      ,  ml(country) mlabang(20) lc(red) mc(red) mlabc(black) mlabpos(2)) ///
-    , ytit("Vignettes Correct Before and After Reallocation") ylab(0 "0%" .2 "20%" .4 "40%" .6 "60%" .8 "80%") ///
-      xtit("Average Interaction Competence Before and After Reallocation") ///
-      legend(on r(1) pos(7) order(2 "Theoretical" 3 "Actual") ring(0)) ///
-      title("Supply-Side Provider Reallocation")
-
-      graph save "${git}/temp/f-optimization-supply.gph" , replace
-
-    graph combine ///
-      "${git}/temp/f-optimization-supply.gph" ///
-      "${git}/temp/f-optimization-demand.gph" ///
-    , ysize(6) c(1) scale(0.7) xcom
-
-    graph export "${git}/output/f-optimization-x.png" , replace
-
-
-**************************************************
-// Figure: Vizualizations for sectoral restriction
-**************************************************
-
-// Create optimized allocation images
-use "${git}/constructed/capacity-optimized.dta", clear
-
-  binsreg  cap_old irt_old if irt_old > -2 & irt_old < 2 ///
-    , polyreg(2) by(country) ysize(8) nbins(10) ///
-      xscale(noline) yscale(noline) xtit("Provider Competence") title("Actual") ytit("Daily Outpatient Caseload") ///
-      bysymbols(o o o o o o o o o o ) bycolors(blue cranberry cyan dkgreen dkorange emerald gold lavender magenta maroon navy red) ///
-      legend(on pos(3) c(5) region(lc(none)) size(small) ///
-        order(1 "Kenya" 3 "Madagascar" 5 "Malawi" 7 "Mozambique" 9 "Niger" ///
-              11 "Nigeria" 13 "Sierra Leone" 15 "Tanzania" 17 "Togo" 19 "Uganda") )
-
-    graph save "${git}/outputs/temp/f-optimization-1.gph" , replace
-
-  binsreg  cap_hftype irt_hftype if irt_hftype > -2 & irt_hftype < 2 ///
-    , polyreg(2) by(country) legend(on pos(3) c(1)) ysize(8) nbins(10) ///
-      xscale(noline) yscale(noline) xtit("Provider Competence") title("Reallocated") ytit("Daily Outpatient Caseload") ///
-      bysymbols(o o o o o o o o o o )  bycolors(blue cranberry cyan dkgreen dkorange emerald gold lavender magenta maroon navy red)
-
-    graph save "${git}/outputs/temp/f-optimization-2.gph" , replace
-
-  grc1leg ///
-    "${git}/outputs/temp/f-optimization-1.gph" ///
-    "${git}/outputs/temp/f-optimization-2.gph" , ycom
-
-    graph draw, ysize(6)
-
-    graph export "${git}/output/f-optimization.png" , replace
-
-
-**************************************************
-// Figure: Meta-analytical comparison
-**************************************************
-use "${git}/constructed/capacity.dta", clear
-  egen correct = rowmean(treat?)
-  ren irt irt_new
-  reg correct irt_new i.country
-
-use "${git}/constructed/optimize-doctors-done.dta" , clear
-  keep if f == float(0.95)
-  predict correct
-  collapse (mean) effect_size = correct (p95) _meta_ciu = correct (p5) _meta_cil = correct , by(country)
-  gen region = " 95% Doctoral Training Simulation"
-  tempfile docs
-    save `docs'
-
-use "${git}/constructed/capacity-comparison.dta" , clear
-
-  keep if x == "Knowledge"
-  gen region = "  Average Across Reallocation Simulations"
-
-  egen _meta_ciu = rowmax(irt_public irt_rururb irt_levels irt_hftype irt_unrest)
-  egen _meta_cil = rowmin(irt_public irt_rururb irt_levels irt_hftype irt_unrest)
-
-  foreach var in irt smean _meta_ciu _meta_cil  {
-    preserve
-    use "${git}/constructed/capacity.dta", clear
-      egen correct = rowmean(treat?)
-      ren irt `var'
-      reg correct `var' i.country
-    restore
-    predict `var'_c
-  }
-    gen effect_size = smean_c if x == "Knowledge"
-    replace _meta_ciu = _meta_ciu_c
-    replace _meta_cil = _meta_cil_c
-
-  append using `docs'
-    bys country : egen temp = min(irt_c)
-    replace irt_c = temp if irt_c == .
-    drop temp
-
-  replace _meta_ciu = _meta_ciu - irt_c
-  replace _meta_cil = _meta_cil - irt_c
-  replace effect_size = effect_size - irt_c
-
-  replace _meta_ciu = _meta_ciu * 100
-  replace _meta_cil = _meta_cil * 100
-  replace effect_size = effect_size * 100
-
-  keep country region _meta_ciu _meta_cil effect_size
-
-  append using "${git}/constructed/comparison.dta" , gen(sgroup)
-
-  decode country, gen(temp)
-    replace CountryName = temp if temp !=""
-  meta set effect_size _meta_cil _meta_ciu,  studylabel(CountryName) civartolerance(100)
-
-  replace CountryName = "Tanzania" if strpos(CountryName,"Tanzania")
-
-  replace region = "African RCTs with Comparable (%) Outcomes" if WHO_Region2 == "AFRO"
-  replace region = "Americas" if WHO_Region2 == "AMRO"
-  replace region = "Eastern Mediterranean" if WHO_Region2 == "EMRO"
-  replace region = "South Asia" if WHO_Region2 == "SEARO"
-  replace region = "Western Pacific" if WHO_Region2 == "WPRO"
-  drop if WHO_Region2 == "EURO"
-
-  replace Outcome_definition = strtrim(Outcome_definition)
-  lab var Outcome_definition "Outcome"
-  replace Outcome_definition = "Simulation Predicted Increase in General Correct Management" if Outcome_definition == ""
-
-  replace Outcome_definition = "Correct Drug" if studyid == 1000001
-  replace Outcome_definition = "Inhaled Corticosteroid" if studyid == 1900001
-  replace Outcome_definition = "SPs with Correct Treatment" if studyid == 5100001
-  replace Outcome_definition = "Diarrhea Patients Treated by STGs" if studyid == 17190101
-  replace Outcome_definition = "Patients Given Correct Chloroquine Dose" if studyid == 17300001
-  replace Outcome_definition = "Consultations Where HCP Gives First Dose to Child" if studyid == 27600001
-  replace Outcome_definition = "URI Prescriptions with No Drugs" if studyid == 67200001
-  replace Outcome_definition = "Patients Managed per Standing Orders" if studyid == 144200001
-  replace Outcome_definition = "Injections Appropriate" if studyid == 149300001
-  replace Outcome_definition = "Medications With Dose Stated" if studyid == 149600001
-  replace Outcome_definition = "Medications With Amodiaquine" if studyid == 205400001
-  replace Outcome_definition = "ORS and Zinc for Uncomplicated Diarrhea" if studyid == 258300001
-  replace Outcome_definition = "Appropriate Follow-Ups for Injectable Contraceptives" if studyid == 258900001
-  replace Outcome_definition = "Patients With HCP Observing First Dose" if studyid == 261500001
-  replace Outcome_definition = "Correctly Treated Malaria" if studyid == 274300001
-  replace Outcome_definition = "Malaria-Negative Patients With Artemether-Lumefantrine" if studyid == 275200001
-  replace Outcome_definition = "Carer Reported Correct Child Care for Fever/Diarrhea/Pneumonia" if studyid == 279400001
-  replace Outcome_definition = "Non-Menstruating Patients Denied Contraceptives" if studyid == 279500001
-  replace Outcome_definition = "HIV-Positive Pregnant Women Receiving ARVs" if studyid == 286500001
-  replace Outcome_definition = "SPs with Correct Artemether-Lumefantrine Treatment" if studyid == 287400001
-  replace Outcome_definition = "Patients Prescribed Co-trimoxazole Prophylaxis" if studyid == 289600001
-  replace Outcome_definition = "Patients Prescribed Antimalarials" if studyid == 291100001
-  replace Outcome_definition = "Patients Prescribed Antibiotics or Antimalarials" if studyid == 296600001
-  replace Outcome_definition = "Prescriptions with Injection" if studyid == 298000001
-
-  meta forest _id Outcome_definition _esci _plot if effect_size < 50 ///
-    & (region == "  Average Across Reallocation Simulations" | region == " 95% Doctoral Training Simulation") ///
-  , subgroup(region) sort(CountryName) ///
-    nowmark noghet nogwhomt noohomtest noohetstats nullrefline ///
-    bodyopts(size(large)) mark(msize(small) mcolor(black) msymbol(O) ) ///
-    ciopts(lc(gs12) mstyle(none)) nooverall
-
-   graph export "${git}/output/f-lit-review.png" , replace
-
-  meta forest _id Outcome_definition _esci _plot if effect_size < 50 ///
-    & !(region == "  Average Across Reallocation Simulations" | region == " 95% Doctoral Training Simulation" | region == "Africa") ///
-  , subgroup(region) sort(effect_size) ///
-    nowmark noghet nogwhomt noohomtest noohetstats nullrefline ///
-    bodyopts(size(small)) mark(msize(small) mcolor(black) msymbol(O) ) ///
-    ciopts(lc(gs12) mstyle(none)) nooverall
-
-    graph export "${git}/appendix/f-lit-2.png" , replace
-
-  // Save for comparison
-
-  gen check = 1
-  replace effect_size=effect_size*100
-  save "${git}/constructed/optimize-comparison.dta" , replace
 
 // End

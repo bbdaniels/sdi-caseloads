@@ -3,84 +3,18 @@
 **************************************************
 
 // Calculate new capacity per day at each provider based on resorting
-use "${git}/constructed/capacity.dta", clear
-  drop if hf_type == . | hf_outpatient == 0
-  gen cap = hf_outpatient/(60*hf_staff_op)
-    drop if cap == .
+use "${git}/constructed/capacity.dta" if hf_provs <10, clear
+  drop if cap == .
 
   egen vig = rowmean(treat?)
+  reg vig c.irt##i.country##i.hf_type
+  drop vig
+    predict vig
 
   tempfile irt all
   keep country irt cap hf_type hf_level hf_rural public cadre ///
     hf_staff_op hf_outpatient hf_inpatient treat? vig
   save `all'
-
-qui {
-  // Capacity adjustment resorts
-    collapse (p90) new=cap (rawsum) n=cap , by(country)
-      merge 1:m country using `all' , nogen
-      gsort country -irt
-      gen tot = n/new
-      bys country : gen cap_biggco = new if _n <= tot
-        replace cap_biggco = 0 if cap_biggco == .
-        gen irt_biggco = irt
-        gen vig_biggco = vig
-        drop n tot new
-        save `all' , replace
-
-    collapse (p90) new=cap (rawsum) n=cap , by(country hf_level)
-      merge 1:m country hf_level using `all' , nogen
-      gsort country hf_level -irt
-      gen tot = n/new
-      bys country hf_level : gen cap_biggse = new if _n <= tot
-        replace cap_biggse = 0 if cap_biggse == .
-        gen irt_biggse = irt
-        gen vig_biggse = vig
-        drop n tot new
-        save `all' , replace
-
-    collapse (p90) new=cap (rawsum) n=cap , by(country hf_level)
-      merge 1:m country hf_level using `all' , nogen
-      gsort country hf_level -irt
-      gen tot = n/20
-      bys country hf_level : gen cap_bigg20 = new if _n <= tot
-        replace cap_bigg20 = 0 if cap_bigg20 == .
-        gen irt_bigg20 = irt
-        gen vig_bigg20 = vig
-        drop n tot new
-        save `all' , replace
-
-    collapse (p90) new=cap (rawsum) n=cap , by(country hf_level)
-      merge 1:m country hf_level using `all' , nogen
-      gsort country hf_level -irt
-      gen tot = n/30
-      bys country hf_level : gen cap_bigg30 = new if _n <= tot
-        replace cap_bigg30 = 0 if cap_bigg30 == .
-        gen irt_bigg30 = irt
-        gen vig_bigg30 = vig
-        drop n tot new
-        save `all' , replace
-
-    collapse (p90) new=cap (rawsum) n=cap , by(country hf_level)
-      merge 1:m country hf_level using `all' , nogen
-      gsort country hf_level -irt
-      gen tot = n/40
-      bys country hf_level : gen cap_bigg40 = new if _n <= tot
-        replace cap_bigg40 = 0 if cap_bigg40 == .
-        gen irt_bigg40 = irt
-        gen vig_bigg40 = vig
-        drop n tot new
-        save `all' , replace
-
-    collapse (p90) new=cap (rawsum) n=cap , by(country hf_level)
-      merge 1:m country hf_level using `all' , nogen
-      gsort country hf_level -irt
-      gen tot = n/50
-      bys country hf_level : gen cap_bigg50 = new if _n <= tot
-        replace cap_bigg50 = 0 if cap_bigg50 == .
-        gen irt_bigg50 = irt
-        gen vig_bigg50 = vig
-        drop n tot new
 
   // Restricted to type resort
   preserve
@@ -171,7 +105,6 @@ qui {
     gen cap_public = cap
     gen ser_public = _n
     merge 1:1 ser_public using `irt' , nogen
-}
 
   ren (irt cap vig) (irt_old cap_old vig_old)
     egen c = rowmean(treat?)
@@ -191,8 +124,7 @@ use "${git}/constructed/capacity-optimized.dta" , clear
   restore
 
   qui foreach type in ///
-    unrest hftype levels rururb public cadres ///
-    biggco biggse bigg20 bigg30 bigg40 bigg50 {
+    unrest hftype levels rururb public cadres {
     preserve
       collapse irt_`type' vig_`type' [aweight=cap_`type'] , by(country)
         ren vig_`type' irt_xxx
@@ -206,17 +138,20 @@ use "${git}/constructed/capacity-optimized.dta" , clear
 
   use `all' , clear
     egen mean = rowmean(irt_*)
-    egen dmean = rowmean(irt_bigg50 irt_bigg40 irt_bigg30 irt_bigg20 irt_biggse irt_biggco)
     egen smean = rowmean(irt_cadres irt_public irt_rururb irt_levels irt_hftype irt_unrest)
-    gen ddif = dmean - irt
     gen sdif = smean - irt
 
   sort x country
     replace x = "Knowledge" if x == "_old"
     replace x = "Correct" if x == "_xxx"
+    gen loss = (irt_hftype-irt) / irt_hftype if x == "Correct"
+    gen gain = (irt_hftype-irt) / irt if x == "Correct"
+
 
   save "${git}/constructed/capacity-comparison.dta" , replace
+  use "${git}/constructed/capacity-comparison.dta" , replace
 
+-
 **************************************************
 // Part 4: Doctor resampling
 **************************************************
