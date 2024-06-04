@@ -82,6 +82,8 @@ args periods patients duration
 
 end
 
+// Queueing Figure. Clumping
+
 local x = 1
 foreach seed in 969264 089365 739579 8029288 {
   set seed `seed'
@@ -98,19 +100,21 @@ foreach seed in 969264 089365 739579 8029288 {
         xtit("Idle Share: `idle' | Mean Wait: `wait' Min.") xlab(0 "Hours {&rarr}" 1 2 3 4 5 6 "Close") xoverhang ///
         legend(on order(3 "No Patients" 2 "Serving Patients" 1 "Patients Waiting") r(1)  pos(12) ring(1) symxsize(small))
 
-       graph save "${git}/temp/queue-`x'.gph" , replace
+       graph save "${git}/outputs/temp/queue-`x'.gph" , replace
        local ++x
 }
 
 grc1leg ///
-"${git}/temp/queue-1.gph" ///
-"${git}/temp/queue-2.gph" ///
-"${git}/temp/queue-3.gph" ///
-"${git}/temp/queue-4.gph" ///
+"${git}/outputs/temp/queue-1.gph" ///
+"${git}/outputs/temp/queue-2.gph" ///
+"${git}/outputs/temp/queue-3.gph" ///
+"${git}/outputs/temp/queue-4.gph" ///
  , altshrink
 
  graph draw, ysize(6)
- graph export "${git}/appendix/queue-1.png" , width(3000) replace
+ graph export "${git}/outputs/appendix/queue-clumping.png" , width(3000) replace
+
+ // Queueing Figure. Varying busy-ness
 
 local x = 1
 set seed 123396
@@ -129,20 +133,21 @@ foreach pats in 15 20 30 40 {
        xtit("Patients/Day: `pats' | Idle Share: `idle' | Mean Wait: `wait' Min.") xlab(0 "Hours {&rarr}" 1 2 3 4 5 6 "Close") xoverhang ///
        legend(on order(3 "No Patients" 2 "Serving Patients" 1 "Patients Waiting") r(1)  pos(12) ring(1) symxsize(small))
 
-      graph save "${git}/temp/queue-`x'.gph" , replace
+      graph save "${git}/outputs/temp/queue-`x'.gph" , replace
       local ++x
 }
 
 grc1leg ///
-"${git}/temp/queue-1.gph" ///
-"${git}/temp/queue-2.gph" ///
-"${git}/temp/queue-3.gph" ///
-"${git}/temp/queue-4.gph" ///
+"${git}/outputs/temp/queue-1.gph" ///
+"${git}/outputs/temp/queue-2.gph" ///
+"${git}/outputs/temp/queue-3.gph" ///
+"${git}/outputs/temp/queue-4.gph" ///
 , altshrink
 
 graph draw, ysize(6)
-graph export "${git}/appendix/queue-2.png" , width(3000) replace
+graph export "${git}/outputs/main/f-queue-crowding.png" , width(3000) replace
 
+// Queueing Figure. Large simulations
 
 clear
 tempfile results
@@ -164,16 +169,16 @@ foreach pats in  15 20 30 40 {
 }
 
   replace wait = 1 if wait < 1
-  tw (scatter idle wait if pats == 15 , mc(black)) ///
-     (scatter idle wait if pats == 20 , mc(red) m(t)) ///
-     (scatter idle wait if pats == 30 , mc(blue) m(S)) ///
-     (scatter idle wait if pats == 40 , mc(green) m(D)) ///
+  tw (scatter idle wait if pats == 15 , mfc(none) mlc(black) mlw(thin) msize(medium)) ///
+     (scatter idle wait if pats == 20 , m(t) mfc(none) mlc(black) mlw(thin) msize(medium)) ///
+     (scatter idle wait if pats == 30 , m(S) mfc(none) mlc(black) mlw(thin) msize(medium)) ///
+     (scatter idle wait if pats == 40 , m(D) mfc(none) mlc(black) mlw(thin) msize(medium)) ///
   , legend(on pos(2) c(1) ring(0) ///
     order(1 "15 Patients/Day" 2 "20 Patients/Day" 3 "30 Patients/Day" 4 "40 Patients/Day")) ///
     xtit("Mean Waiting Time for Serviced Patients (Minutes)") xscale(log) ///
     xlab(1 "No Wait" 2.5 5 10 20 40 80) ///
     ytit("Idle Time for Provider") ylab(1 "100%" .75 "75%" .5 "50%" .25 "25%" 0 "0%")
 
-    graph export "${git}/appendix/queue-3.png" , width(3000) replace
+    graph export "${git}/outputs/main/f-queue-simulations.png" , width(3000) replace
 
 // End

@@ -1,3 +1,18 @@
+
+// Summary figure: Country-facility variation for (sm)all facilities
+
+use "${git}/constructed/capacity-fac.dta" , clear //if hf_staff_op <=10
+
+  replace hf_staff_op = 11 if hf_staff_op > 10
+
+  tw (scatter  hf_provs hf_staff_op if hf_staff_op > 0 & hf_provs < 10  ///
+      , jitter(7) msize(vtiny) m(.) mc(black)) ///
+     (scatter hf_provs hf_staff_op if hf_staff_op > 0 & hf_provs >= 10  ///
+         , jitter(7) msize(vtiny) m(.) mc(red)) ///
+  , xlab(0 " " 1(1)9 10 11 ">10" 12 " ") ylab(0 " "  1(1)10 11 " ")
+
+  graph export "${git}/outputs/main/af-facility-capacity.png" , replace
+
 // Figure. Caseload by facility-provider w absenteeism
 use "${git}/constructed/capacity.dta", clear
   drop if hf_outpatient == . | hf_outpatient == 0 | hf_staff_op == 0
