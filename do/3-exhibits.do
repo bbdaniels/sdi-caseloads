@@ -59,32 +59,37 @@ use "${git}/constructed/capacity-fac.dta" , clear // if hf_provs <10
 
 // Summary figure: Country-facility variation for small facilities
 
-use "${git}/constructed/capacity.dta" if hf_staff_op <=10, clear
+use "${git}/constructed/capacity.dta" , clear // if hf_staff_op <=10
 
   gen c2 = hf_outpatient/60
+  drop if hf_outpatient == . | cap == .
   egen tag = tag(fid)
 
-  lab var cap "Average Provider"
-  graph hbox cap , over(country) noout saving("${git}/outputs/temp/g1.gph" , replace) nodraw note(" ") ///
+  replace cap = 200 if cap > 200
+    lab var cap "Provider Experience: Daily Outpatients"
+  graph hbox cap , over(country , sort(1)) noout saving("${git}/outputs/temp/g1.gph" , replace) nodraw note(" ") ///
       box(1 , lc(black) lw(thin)) ///
       marker(1, m(p) mc(black) msize(tiny)) medtype(cline) medline(lc(red) lw(medthick)) ///
       inten(0) cwhi lines(lw(thin) lc(black))
-  lab var c2 "Average Facility"
-  graph hbox c2 if tag == 1 , over(country) noout saving("${git}/outputs/temp/gf.gph" , replace) nodraw note(" ") ///
+
+  lab var c2 "Daily Outpatients Per Facility"
+    replace c2 = 200 if c2 > 200
+  graph hbox c2 if tag == 1 , over(country , sort(1)) noout saving("${git}/outputs/temp/gf.gph" , replace) nodraw note(" ") ///
       box(1 , lc(black) lw(thin)) ///
       marker(1, m(p) mc(black) msize(tiny)) medtype(cline) medline(lc(red) lw(medthick)) ///
       inten(0) cwhi lines(lw(thin) lc(black))
-  lab var cap "Average Patient"
-  graph hbox cap [aweight=cap], over(country) noout saving("${git}/outputs/temp/g2.gph" , replace) nodraw note(" ") ///
+
+  lab var cap "Patient Experience: Daily Outpatients at Provider"
+  graph hbox cap [aweight=cap], over(country , sort(1)) noout saving("${git}/outputs/temp/g2.gph" , replace) nodraw note(" ") ///
       box(1 , lc(black) lw(thin)) ///
       marker(1, m(p) mc(black) msize(tiny)) medtype(cline) medline(lc(red) lw(medthick)) ///
       inten(0) cwhi lines(lw(thin) lc(black))
 
   graph combine ///
-    "${git}/outputs/temp/g1.gph" ///
     "${git}/outputs/temp/gf.gph" ///
+    "${git}/outputs/temp/g1.gph" ///
     "${git}/outputs/temp/g2.gph" ///
-  , ysize(6) c(1) xcom imargins(none)
+  , ysize(6) c(1) xcom imargins(none) altshrink
 
   graph export "${git}/outputs/main/f-summary-capacity.png" , replace
 
@@ -210,11 +215,44 @@ use "${git}/constructed/capacity.dta", clear
     gen pct = cap/tot
 
   graph hbar pct , over(val) over(country) asy stack ///
-    legend(on pos(12) symxsize(small) order (1 "20% Busiest Providers" 2 "Next 20%" 3 "Bottom 60%") r(1)) ///
+    legend(on pos(12) symxsize(small) order (1 "20% Busiest Providers" 2 "Next 20%" 3 "Bottom 60%") c(1)) ///
     ytitle("Share of Total Outpatients") ylab(${pct}) blab(bar, pos(center) format(%9.2f) ) ///
     bar(1 , fc(gs12) lc(black)) bar(2 , fc(gs14) lc(black)) bar(3 , fc(gs16) lc(black))
 
+    graph save "${git}/outputs/temp/f-distribution-cap.gph" , replace
+
+use "${git}/constructed/capacity.dta", clear
+
+  gen c2 = .
+  forv i = 2/11 {
+    xtile temp = irt if country == `i' , n(100)
+    replace c2 = temp if country == `i'
+    drop temp
+  }
+
+  gen val = 1
+    replace val = 2 if c2 < 81
+    replace val = 3 if c2 < 61
+
+  collapse (sum) cap , by(country val)
+    bys country : egen tot = sum(cap)
+    gen pct = cap/tot
+
+  graph hbar pct , over(val) over(country) asy stack ///
+    legend(on pos(12) symxsize(small) order (1 "20% Best Providers" 2 "Next 20%" 3 "Bottom 60%") c(1)) ///
+    ytitle("Share of Total Outpatients") ylab(${pct}) blab(bar, pos(center) format(%9.2f) ) ///
+    bar(1 , fc(gs12) lc(black)) bar(2 , fc(gs14) lc(black)) bar(3 , fc(gs16) lc(black))
+
+    graph save "${git}/outputs/temp/f-distribution-irt.gph" , replace
+
+
+  graph combine ///
+    "${git}/outputs/temp/f-distribution-cap.gph" ///
+    "${git}/outputs/temp/f-distribution-irt.gph" ///
+  , r(1)
+
     graph export "${git}/outputs/main/f-distribution-pat.png" , replace
+
 
 **************************************************
 // Figure: Vizualizations for correctness
