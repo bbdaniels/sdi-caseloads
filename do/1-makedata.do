@@ -244,7 +244,7 @@
 
   replace hf_provs = 1
     lab var hf_provs "Observed Providers"
-  labelcollapse (sum) hf_provs (firstnm) country year hf_staff_op hf_outpatient hf_type , by(fid) vallab(country)
+  labelcollapse (sum) hf_provs (firstnm) country year hf_staff_op hf_outpatient hf_type , by(fid) vallab(country hf_type)
 
   gen cap = hf_outpatient/(60)
     lab var cap "Outpatients per Facility Day"

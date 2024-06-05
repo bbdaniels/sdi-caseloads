@@ -1,6 +1,7 @@
+// Summary table: Country-facility crowding
+use "${git}/constructed/capacity-fac.dta" , clear
 
-// Summary table: Country-facility crowding for small facilities
-use "${git}/constructed/capacity-fac.dta" , clear // if hf_provs <10
+ drop if cap == . | hf_type == .
 
   expand 2 , gen(check)
     replace country = 1 if check == 1
@@ -55,79 +56,83 @@ use "${git}/constructed/capacity-fac.dta" , clear // if hf_provs <10
              "Patients per Facility Day" "(Average Patient)" ///
              "Patients per Provider Day" "(Average Patient)")
 
+// Table: Regressions
+  use "${git}/constructed/capacity-fac.dta" , clear
+
+    bys country: gen weight = 1/_N
+    reg cap          b3.hf_type  [pweight=weight] , a(country)
+      est sto reg11
+    reg cap hf_provs b3.hf_type [pweight=weight] , a(country)
+      est sto reg21
+    reg cap_prov hf_provs b3.hf_type  [pweight=weight] , a(country)
+      est sto reg31
+
+  use "${git}/constructed/capacity.dta" , clear
+  bys country: gen weight = 1/_N
+     drop if provider_mededuc1 == 1
+
+    egen vig = rowmean(treat?)
+    reg vig c.irt##i.country##i.hf_type
+    drop vig
+      predict vig
+      replace vig = 0 if vig < 0
+      replace vig = 100*vig
+
+    reg cap b4.cadre i.provider_mededuc1 [pweight=weight] , a(country)
+    est sto reg1
+
+    reg cap hf_provs b3.hf_type b4.cadre  i.provider_mededuc1 [pweight=weight] , a(country)
+    est sto reg2
+
+    reg cap vig hf_provs b3.hf_type b4.cadre  i.provider_mededuc1 [pweight=weight] , a(country)
+    est sto reg3
+
+  outwrite reg3 reg2 reg1 reg31 reg21 reg11 ///
+    using "${git}/outputs/main/t-provs-capacity.xlsx" ///
+  , replace stats(N r2) ///
+    colnames("General" "Providers per Facility" "Competence" "Providers per Facility" "General")
 
 
-               // keep if hf_staff_op < 10
-               replace hf_staff_op = hf_op_count * (hf_absent) if hf_staff_op == 10
+-- // NEW EOF
 
-               gen hf_outpatient_day = hf_outpatient/90
-               clonevar cap_old = hf_outpatient_day
-               clonevar irt_old = irt
 
-               collapse (mean) hf_outpatient_day hf_staff_op irt_old ///
-                 (rawsum) cap_old , by(country hf_level)
+// Tables of comparative statistics
+use "${git}/constructed/capacity.dta" , clear
+  drop if hf_outpatient == . | cap == .
 
-                 expand 2 , gen(check)
-                   replace country = 0 if check == 1
+  egen vig = rowmean(treat?)
+  reg vig c.irt##i.country##i.hf_type
+  drop vig
+    predict vig
+    replace vig = 0 if vig < 0
 
-               collapse (mean) hf_outpatient_day hf_staff_op irt_old ///
-                 (rawsum) cap_old , by(country hf_level)
+  preserve
+  gsort country hf_type -irt
+    keep country hf_type irt vig
+    ren vig vig_hftype
+    ren irt irt_hftype
+    gen ser_hftype = _n
+    tempfile irt
+    save `irt' , replace
+  restore
 
-                 drop if hf_level == . | cap_old == 0
-                 recode hf_level (1=1 "Health Post")(2=3 "Hospital")(3=2 "Clinic") , gen(level)
-                 sort country level
+  gsort country hf_type -cap
+    gen ser_hftype = _n
+    merge 1:1 ser_hftype using `irt' , nogen
 
-               gen c2 = hf_outpatient_day/hf_staff_op
-               egen temp = sum(cap_old) , by(country)
-               gen n = cap_old/temp
-               gen t = c2 * (6.8/60)
+  collapse ///
+    (p25) cap25 = cap vig25 = vig ///
+    (p75) cap75 = cap vig75 = vig ///
+    (mean) vig vig_hftype ///
+    [aweight = cap] , by(country)
 
-               lab var n "Outpatient Share"
-               lab var irt_old "Mean Competence"
-               lab var hf_outpatient_day "Daily Outpatients per Facility"
-               lab var hf_staff_op "Outpatient Staff"
-               lab var c2 "Outpatients per Staff Day"
-               lab var level "Level"
-               lab var t "Hours per Provider Day"
+    gen gain = vig_hftype - vig
+    gen g2 = gain / vig
 
-               export excel ///
-                 country level hf_outpatient_day hf_staff_op c2 t n irt_old  ///
-               using "${git}/outputs/main/t-summary-capacity.xlsx" ///
-               , replace first(varl)
+  export excel ///
+    country cap25 cap75 vig25 vig75 vig vig_hftype gain g2 ///
+    using "${git}/outputs/main/t-optimize-quality.xlsx" ///
+  , replace first(var)
 
-             // Tables of comparative statistics
-               use "${git}/constructed/capacity-comparison.dta" , replace
-
-               foreach var in irt smean dmean {
-                 preserve
-                 use "${git}/constructed/capacity.dta", clear
-                   egen correct = rowmean(treat?)
-                   ren irt `var'
-                   reg correct `var' i.country
-                 restore
-                 predict `var'_c
-               }
-                 gen sdifc = smean_c - irt_c if x == "Knowledge"
-                   bys country: egen temp = mean(sdifc)
-                   replace sdifc = temp
-                   drop temp
-                   replace sdifc = . if x == "Knowledge"
-                 gen ddifc = dmean_c - irt_c if x == "Knowledge"
-                   bys country: egen temp = mean(ddifc)
-                   replace ddifc = temp
-                   drop temp
-                   replace ddifc = . if x == "Knowledge"
-
-               gsort -x country
-
-               export excel country x ///
-                 irt smean sdif sdifc irt_unrest irt_cadres irt_public irt_levels irt_rururb irt_hftype ///
-                 using "${git}/output/t-optimize-quality-s.xlsx" ///
-               , replace first(var)
-
-               export excel country x ///
-                 irt dmean ddif ddifc irt_biggco irt_biggse irt_bigg20 irt_bigg30 irt_bigg40 irt_bigg50 ///
-                 using "${git}/output/t-optimize-quality-d.xlsx" ///
-               , replace first(var)
 
 //
