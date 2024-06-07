@@ -163,7 +163,7 @@ use "${git}/constructed/capacity-optimized.dta" , clear
 gen uid = _n
 
 gen doctor = (cadre == 1)
-keep doctor irt_old country cap_old uid
+keep doctor vig_old country cap_old uid
 
 levelsof country, local(cs)
 
@@ -171,7 +171,7 @@ foreach c in `cs' {
 
   preserve
   keep if doctor == 1 & country == `c'
-  clonevar irt_doc = irt_old
+  clonevar vig_doc = vig_old
   tempfile doctors
   save `doctors'
   restore
@@ -206,10 +206,10 @@ args frac
       bys country: gen N = _N
       replace rank = rank/N
 
-    gen irt_new = irt_old
-      replace irt_new = irt_doc if rank < `frac' & irt_doc > irt_new
+    gen vig_new = vig_old
+      replace vig_new = vig_doc if rank < `frac' & vig_doc > vig_new
 
-    collapse irt_new [aweight=cap_old] , by(country)
+    collapse vig_new [aweight=cap_old] , by(country)
     gen f = `frac'
 
 end

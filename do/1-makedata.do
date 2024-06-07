@@ -286,7 +286,7 @@ use "${git}/data/uganda.dta" , clear
     lab var cap "Outpatients per Facility Day"
 
   gen cap_prov = hf_outpatient/(60*hf_provs)
-    lab var cap "Outpatients per Provider Day"
+    lab var cap_prov "Outpatients per Provider Day"
 
   save "${git}/constructed/capacity-fac.dta", replace
 
