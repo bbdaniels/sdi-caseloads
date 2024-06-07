@@ -119,27 +119,26 @@ use "${git}/constructed/capacity.dta" , clear
     graph export "${git}/outputs/main/f-raw-correlations.png" , replace
 
 // Figure 6,7. Correlations in data between caseload and competence (Optimized)
-use "${git}/constructed/capacity.dta", clear
+use "${git}/constructed/capacity.dta" , clear
 
-  bys country: gen weight = 1/_N
-  keep if cap != . & irt != .
-  drop if hf_type == .
+  bys country: egen check = sum(cap)
+    gen check2 = cap/check
 
-  qui forv i = 1/7 {
-    logit treat`i' c.irt##i.country
-      predict p`i' , pr
-    gen x`i' = !missing(p`i')
-  }
+    bys country: gen pweight = 1/_N
 
-  egen x = rowtotal(x?)
-  egen p = rowtotal(p?)
-   gen treat = p/x
+  bys country: gen weight = check2/_N
 
-  mean treat [pweight=cap*weight]
+  egen treat = rowmean(treat?)
+  reg treat c.irt##i.country##i.hf_type
+  drop treat
+    predict treat
+    replace treat = 0 if treat < 0
+
+  mean treat [pweight=weight]
     mat a = r(table)
     local old = a[1,1]
 
-  keep treat country hf_type weight irt cap
+  keep treat country hf_type pweight weight irt cap
 
   bys country hf_type (irt): gen srno = _n
     tempfile irtrank
@@ -150,12 +149,12 @@ use "${git}/constructed/capacity.dta", clear
   bys country hf_type (cap_old): gen srno = _n
     merge 1:1 country hf_type srno using `irtrank'
 
-  mean treat [pweight=cap_old*weight]
+  mean treat [pweight=weight]
    mat a = r(table)
    local new = a[1,1]
 
   tw (histogram treat , w(.0625) start(0) gap(10) lw(none) fc(gs12) yaxis(2) percent) ///
-    (lowess cap_old treat , lc(black) lw(thick)) ///
+    (lowess cap_old treat  , lc(black) lw(thick)) ///
     (lowess cap_old treat_old , lp(dash) lw(thick) lc(black)) ///
     (pci 0 `new' 20 `new' , yaxis(2) lc(black) lw(thick)) ///
     (pci 0 `old' 20 `old' , yaxis(2) lc(black) lw(thick) lp(dash)) ///
@@ -167,11 +166,11 @@ use "${git}/constructed/capacity.dta", clear
     graph export "${git}/outputs/main/f-optimization.png" , replace
 
   tw ///
-    (kdensity treat_old [aweight=cap_old*weight] , lc(black) lw(thick) lp(dash)) ///
-    (kdensity treat [aweight=cap_old*weight] , lc(black) lw(thick)) ///
+    (kdensity treat_old [aweight=weight]  , lc(black) lw(thick) lp(dash)) ///
+    (kdensity treat [aweight=weight] , lc(black) lw(thick)) ///
     (pci 0 `new' 3 `new' , yaxis(2) lc(black) lw(thick)) ///
     (pci 0 `old' 3 `old' , yaxis(2) lc(black) lw(thick) lp(dash)) ///
-    , legend(on pos(12) size(small) order(1 "Observed in Survey" 2 "Optimal Patient Distribution")) ///
+    , yscale(off  axis(2)) legend(on pos(12) size(small) order(1 "Observed in Survey" 2 "Optimal Patient Distribution")) ///
       ytit("Density of Patient Distribution") xtit("Share of Vignettes Correct (Vertical Lines = Means)") xlab(${pct}) xoverhang
 
       graph export "${git}/outputs/main/f-optimization-pat.png" , replace
@@ -179,7 +178,6 @@ use "${git}/constructed/capacity.dta", clear
 // Figure 8: Optimal allocation impacts
 
 use "${git}/constructed/capacity.dta" , clear
-  drop if hf_outpatient == . | cap == .
 
   egen vig = rowmean(treat?)
   reg vig c.irt##i.country##i.hf_type

@@ -19,6 +19,7 @@ ssc install repkit, replace
   cap ssc install cdfplot , replace
   cap net install grc1leg , from("http://www.stata.com/users/vwiggins/") replace
   cap net install binsreg , from("https://raw.githubusercontent.com/nppackages/binsreg/master/stata")
+  cap net install st0085_2 , from("http://www.stata-journal.com/software/sj14-2")
 
   net from "https://github.com/bbdaniels/stata/raw/main/"
     cap net install outwrite
@@ -53,6 +54,18 @@ ssc install repkit, replace
 
   iecodebook export "${box}/comparison.dta" ///
     using "${git}/data/comparison.xlsx" ///
+    , replace save sign reset
+
+  iecodebook export "${box}/SDI_Nigeria-2013_Module1_Raw.dta" ///
+    using "${git}/data/nigeria.xlsx" ///
+    , replace save sign reset
+
+  iecodebook export "${box}/SDI_Tanzania-2016_Module1_Raw.dta" ///
+    using "${git}/data/tanzania.xlsx" ///
+    , replace save sign reset
+
+  iecodebook export "${box}/SDI_Uganda-2013_Module1_Raw.dta" ///
+    using "${git}/data/uganda.xlsx" ///
     , replace save sign reset
 
   copy "${box}/All_countries_harm.dta" ///

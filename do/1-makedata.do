@@ -1,5 +1,39 @@
-*Open harmonized dataset
+use "${git}/data/nigeria.dta" , clear
+  keep fac_id m1saq7 m1sbq8
+  gen country = "NIGERIA"
+  ren (fac_id m1saq7 m1sbq8)(facility_id rural facility_level)
+    recode rural (2=0)
+  tempfile nigeria
+    save `nigeria'
+
+use "${git}/data/tanzania.dta" , clear
+  keep fac_id m1saq7 m1sbq8
+  gen country = "TANZANIA"
+  ren (fac_id m1saq7 m1sbq8)(facility_id rural facility_level)
+    recode rural (2=0)
+  tempfile tanzania
+    save `tanzania'
+
+use "${git}/data/uganda.dta" , clear
+  keep fac_id h1csqb9  h1sa9
+  gen country = "UGANDA"
+  ren (fac_id h1csqb9  h1sa9)(facility_id rural facility_level)
+    recode rural (2=0)
+  tempfile uganda
+    save `uganda'
+
+
+  *Open harmonized dataset
   use  "${git}/data/vignettes.dta", clear
+
+    merge m:1 country facility_id using `nigeria' , update replace nogen keep(1 3 4 5)
+    merge m:1 country facility_id using `tanzania' , update replace nogen keep(1 3 4 5)
+    merge m:1 country facility_id using `uganda' , update replace nogen keep(1 3 4 5)
+
+  drop if rural == 3
+
+  drop fac_type
+  egen fac_type = group(rural facility_level) , label
 
   *Isolate the variables in which the dataset is unique
   keep  cy country year facility_id provider_id unique_id  /// unique identifiers
@@ -92,8 +126,8 @@
 
 
   *Create rural/urban indicator
-  gen      rural = 1 if fac_type == 1 | fac_type == 2 | fac_type == 3
-  replace   rural = 0 if fac_type == 4 | fac_type == 5 | fac_type == 6
+  gen      rural = 0
+  replace   rural = 1 if fac_type == 4 | fac_type == 5 | fac_type == 6
   lab define  rur_lab 1 "Rural" 0 "Urban"
   label val   rural rur_lab
   label var   rural "Facility region"
@@ -235,6 +269,8 @@
   drop if hf_outpatient == 0
   gen cap = hf_outpatient/(60*hf_provs)
     lab var cap "Outpatients per Provider Day"
+
+    drop if cap == .
 
   *Save final dataset with new variables added
   save "${git}/constructed/capacity.dta", replace

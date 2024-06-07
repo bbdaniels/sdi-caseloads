@@ -1,11 +1,6 @@
 // Summary table: Country-facility crowding
 use "${git}/constructed/capacity-fac.dta" , clear
 
- drop if cap == . | hf_type == .
-
-  expand 2 , gen(check)
-    replace country = 1 if check == 1
-
     bys country: gen count = _N
 
   mean count, over(country)
@@ -23,25 +18,20 @@ use "${git}/constructed/capacity-fac.dta" , clear
     mat a = a[1...,1]
     mat results = results, a
 
-  mean cap , over(country)
-    mat a = r(table)'
-    mat a = a[1...,1]
+  tabstat cap , by(country) s(med) not save
+    mat a = [r(Stat1) , r(Stat2) , r(Stat3) , r(Stat4) , r(Stat5) , r(Stat6) , r(Stat7) , r(Stat8) , r(Stat9) , r(Stat10)]'
     mat results = results, a
 
-  mean cap [aweight=cap] , over(country)
-    mat a = r(table)'
-    mat a = a[1...,1]
+  tabstat cap [aweight=cap], by(country) s(med) not save
+    mat a = [r(Stat1) , r(Stat2) , r(Stat3) , r(Stat4) , r(Stat5) , r(Stat6) , r(Stat7) , r(Stat8) , r(Stat9) , r(Stat10)]'
     mat results = results, a
 
-  mean cap_prov [fweight=hf_provs], over(country)
-    mat a = r(table)'
-    mat a = a[1...,1]
+  tabstat cap_prov [fweight=hf_provs], by(country) s(med) not save
+    mat a = [r(Stat1) , r(Stat2) , r(Stat3) , r(Stat4) , r(Stat5) , r(Stat6) , r(Stat7) , r(Stat8) , r(Stat9) , r(Stat10)]'
     mat results = results, a
 
-  gen w2 = cap_prov*hf_provs
-  mean cap_prov [aweight=w2], over(country)
-    mat a = r(table)'
-    mat a = a[1...,1]
+  tabstat cap_prov [aweight=hf_provs*cap_prov], by(country) s(med) not save
+    mat a = [r(Stat1) , r(Stat2) , r(Stat3) , r(Stat4) , r(Stat5) , r(Stat6) , r(Stat7) , r(Stat8) , r(Stat9) , r(Stat10)]'
     mat results = results, a
 
   matlist results
@@ -50,7 +40,7 @@ use "${git}/constructed/capacity-fac.dta" , clear
   outwrite results ///
     using "${git}/outputs/main/t-summary-capacity.xlsx" ///
   , replace ///
-    rownames("Total" "Kenya" "Madagascar" "Malawi" "Mozambique" "Niger" ///
+    rownames("Kenya" "Madagascar" "Malawi" "Mozambique" "Niger" ///
              "Nigeria" "Sierra Leone" "Tanzania" "Togo" "Uganda") ///
     colnames("Facilities (N)" "Providers per Facility" "Providers Present" ///
              "Patients per Facility Day" "(Average Patient)" ///
@@ -59,13 +49,29 @@ use "${git}/constructed/capacity-fac.dta" , clear
 // Table: Regressions
   use "${git}/constructed/capacity-fac.dta" , clear
 
+    replace hf_type = 0 if hf_type == 6
+
     bys country: gen weight = 1/_N
-    reg cap          b3.hf_type  [pweight=weight] , a(country)
+    reg cap          b0.hf_type  [pweight=weight] , a(country)
       est sto reg11
-    reg cap hf_provs b3.hf_type [pweight=weight] , a(country)
+      test 1.hf_type - 4.hf_type = 0
+        estadd scalar hos = `r(p)' : reg11
+      test 2.hf_type - 5.hf_type = 0
+        estadd scalar cli = `r(p)' : reg11
+
+    reg cap hf_provs b0.hf_type [pweight=weight] , a(country)
       est sto reg21
-    reg cap_prov hf_provs b3.hf_type  [pweight=weight] , a(country)
+      test 1.hf_type - 4.hf_type = 0
+        estadd scalar hos = `r(p)' : reg21
+      test 2.hf_type - 5.hf_type = 0
+        estadd scalar cli = `r(p)' : reg21
+
+    reg cap_prov hf_provs b0.hf_type  [pweight=weight] , a(country)
       est sto reg31
+      test 1.hf_type - 4.hf_type = 0
+        estadd scalar hos = `r(p)' : reg31
+      test 2.hf_type - 5.hf_type = 0
+        estadd scalar cli = `r(p)' : reg31
 
   use "${git}/constructed/capacity.dta" , clear
   bys country: gen weight = 1/_N
@@ -78,27 +84,35 @@ use "${git}/constructed/capacity-fac.dta" , clear
       replace vig = 0 if vig < 0
       replace vig = 100*vig
 
-    reg cap b4.cadre i.provider_mededuc1 [pweight=weight] , a(country)
+    replace hf_type = 0 if hf_type == 6
+    replace cadre = 0 if cadre == 4
+    egen fuid = group(country fid)
+
+    areg cap b0.cadre i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
     est sto reg1
 
-    reg cap hf_provs b3.hf_type b4.cadre  i.provider_mededuc1 [pweight=weight] , a(country)
+    areg cap hf_provs b0.hf_type b0.cadre  i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
     est sto reg2
+      test 1.hf_type - 4.hf_type = 0
+        estadd scalar hos = `r(p)' : reg2
+      test 2.hf_type - 5.hf_type = 0
+        estadd scalar cli = `r(p)' : reg2
 
-    reg cap vig hf_provs b3.hf_type b4.cadre  i.provider_mededuc1 [pweight=weight] , a(country)
+    areg cap vig hf_provs b0.hf_type b0.cadre  i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
     est sto reg3
+      test 1.hf_type - 4.hf_type = 0
+        estadd scalar hos = `r(p)' : reg3
+      test 2.hf_type - 5.hf_type = 0
+        estadd scalar cli = `r(p)' : reg3
 
-  outwrite reg3 reg2 reg1 reg31 reg21 reg11 ///
-    using "${git}/outputs/main/t-provs-capacity.xlsx" ///
-  , replace stats(N r2) ///
-    colnames("General" "Providers per Facility" "Competence" "Providers per Facility" "General")
-
-
--- // NEW EOF
+  outwrite reg3 reg11 reg21 reg31 reg1 reg2 reg3      ///
+    using "${git}/outputs/main/t-regs-capacity.xlsx" ///
+  , replace stats(N r2 hos cli) ///
+    colnames("X" "1" "2" "3" "4" "5" "6")
 
 
 // Tables of comparative statistics
 use "${git}/constructed/capacity.dta" , clear
-  drop if hf_outpatient == . | cap == .
 
   egen vig = rowmean(treat?)
   reg vig c.irt##i.country##i.hf_type
@@ -120,17 +134,25 @@ use "${git}/constructed/capacity.dta" , clear
     gen ser_hftype = _n
     merge 1:1 ser_hftype using `irt' , nogen
 
+    expand 2 , gen(fake)
+    replace hf_rural = 2 if fake == 1
+
   collapse ///
     (p25) cap25 = cap vig25 = vig ///
     (p75) cap75 = cap vig75 = vig ///
-    (mean) vig vig_hftype ///
-    [aweight = cap] , by(country)
+    (mean) vig vig_hftype fake ///
+    [aweight = cap] , by(country hf_rural)
 
     gen gain = vig_hftype - vig
     gen g2 = gain / vig
 
+    gen caprat = cap75/cap25
+    gen vigdif = vig75-vig25
+
+  sort fake hf_rural country 
+
   export excel ///
-    country cap25 cap75 vig25 vig75 vig vig_hftype gain g2 ///
+    country hf_rural vig vig_hftype gain g2 cap25 cap75 caprat vig25 vig75 vigdif  ///
     using "${git}/outputs/main/t-optimize-quality.xlsx" ///
   , replace first(var)
 
