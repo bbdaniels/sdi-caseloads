@@ -152,7 +152,7 @@ use "${git}/constructed/capacity.dta" , clear
     , yscale(off  axis(2)) legend(on pos(12) size(small) order(1 "Observed in Survey" 2 "Optimal Patient Distribution")) ///
       ytit("Density of Patient Distribution") xtit("Share of Vignettes Correct (Vertical Lines = Means)") xlab(${pct}) xoverhang
 
-      graph export "${git}/outputs/main/f-optimization-pat.png" , replace
+      graph export "${git}/outputs/appendix/af-optimization-pat.png" , replace
 
 // Figure 8: Optimal allocation impacts
 
@@ -195,7 +195,7 @@ use "${git}/constructed/capacity.dta" , clear
     ylab(${pct}) ///
     ytit("Vignettes Correctly Treated by Provider")
 
-  graph export "${git}/outputs/main/f-optimization-change.png" , replace
+  graph export "${git}/outputs/appendix/af-optimization-change.png" , replace
 
 // TABLES
 
