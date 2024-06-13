@@ -1,18 +1,11 @@
-// Figures for paper
-
-// Figure 1. Country-facility variation for small facilities
-
-use "${git}/constructed/capacity.dta" , clear // if hf_staff_op <=10
-
-  drop if hf_outpatient == . | cap == .
+// Figure 1. Country-facility variation for all facilities
+use "${git}/constructed/capacity.dta" , clear
 
   clonevar weight = cap
   expand 2 , gen(pat)
 
-  replace weight = 1 if pat == 0
-
-  // replace weight = 200 if weight > 200 & weight != .
-  replace cap = 200 if cap > 200 & cap != .
+  replace weight = (hf_provs/hf_provs_vig) if pat == 0
+  replace weight = (cap*hf_provs/hf_provs_vig) if pat == 1
 
   lab def pat 0 "Providers" 1 "Patients"
     lab val pat pat
@@ -27,9 +20,76 @@ use "${git}/constructed/capacity.dta" , clear // if hf_staff_op <=10
 
   graph export "${git}/outputs/main/f-summary-capacity.png" , replace
 
-// Figure 2. Queueing Caseloads
+// Figure 2. Queuing pattern simulations at various caseloads
+clear
 
-// Figure 3. Queueing Distribution
+  local x = 1
+  set seed 123396
+  foreach pats in 15 20 30 40 {
+    qui q_up 360 `pats' 10
+      return list
+        local idle : di %3.2f `r(idle_time)'
+        local wait : di %3.1f `r(mean_wait)'
+        local pati = `r(total_pats)'
+
+    egen check = rownonmiss(q*)
+    replace period = period/60
+    gen zero = 0
+    tw (rarea check zero  period , lc(white%0) fc(gray) connect(stairstep)) ///
+       (line check period , lc(black) connect(stairstep)) ///
+       (scatter check period if service == . , mc(red) m(.)) ///
+     , ytit("Patients in Queue") yscale(r(0)) ylab(#6) ///
+       xtit("Patients/Day: `pats' | Idle Share: `idle' | Mean Wait: `wait' Min.") ///
+       xlab(0 "Hours {&rarr}" 1 2 3 4 5 6 "Close") xoverhang ///
+       legend(on order(3 "No Patients" 2 "Serving Patients" 1 "Patients Waiting") ///
+              r(1)  pos(12) ring(1) symxsize(small))
+
+      graph save "${git}/outputs/temp/queue-`x'.gph" , replace
+        local ++x
+  }
+
+  grc1leg ///
+    "${git}/outputs/temp/queue-1.gph" ///
+    "${git}/outputs/temp/queue-2.gph" ///
+    "${git}/outputs/temp/queue-3.gph" ///
+    "${git}/outputs/temp/queue-4.gph" ///
+  , altshrink
+
+    graph draw, ysize(6)
+  graph export "${git}/outputs/main/f-queue-crowding.png" , width(3000) replace
+
+// Figure 3. Distribution of queuing patterns at various caseloads
+clear
+tempfile results
+save `results' , emptyok
+
+  set seed 836503
+  foreach pats in  15 20 30 40 {
+
+    simulate ///
+      wait = r(mean_wait) idle = r(idle_time) ///
+      , reps(100) ///
+      : q_up 360 `pats' 10
+
+      gen pats = `pats'
+
+      append using `results'
+        save `results' , replace
+
+  }
+
+  replace wait = 1.25 if wait < 1.25
+  tw (scatter idle wait if pats == 15 , mfc(none) mlc(black) mlw(thin) msize(medium)) ///
+     (scatter idle wait if pats == 20 , m(t) mfc(none) mlc(black) mlw(thin) msize(medium)) ///
+     (scatter idle wait if pats == 30 , m(S) mfc(none) mlc(black) mlw(thin) msize(medium)) ///
+     (scatter idle wait if pats == 40 , m(D) mfc(none) mlc(black) mlw(thin) msize(medium)) ///
+  , legend(on pos(2) c(1) ring(0) ///
+    order(1 "15 Patients/Day" 2 "20 Patients/Day" 3 "30 Patients/Day" 4 "40 Patients/Day")) ///
+    xtit("Mean Waiting Time for Serviced Patients (Minutes)") xscale(log) ///
+    xlab(1.25 "No Wait" 2.5 5 10 20 40 80) ///
+    ytit("Idle Time for Provider") ylab(1 "100%" .75 "75%" .5 "50%" .25 "25%" 0 "0%")
+
+    graph export "${git}/outputs/main/f-queue-simulations.png" , width(3000) replace
 
 // Figure 4. Caseload and Competence Distribution
 use "${git}/constructed/capacity.dta", clear
@@ -88,7 +148,6 @@ use "${git}/constructed/capacity.dta", clear
     graph export "${git}/outputs/main/f-distribution-pat.png" , replace
 
 // Figure 5. Correlations in data between caseload and competence
-
 use "${git}/constructed/capacity.dta" , clear
 
   egen treat = rowmean(treat?)
@@ -109,7 +168,7 @@ use "${git}/constructed/capacity.dta" , clear
     local legend `"`legend' `x' "`label': `b' (p=`p')"  "'
   }
 
-  binsreg  cap treat, by(country) polyreg(1) ///
+  binsreg  cap treat [aweight=hf_provs/hf_provs_vig], by(country) polyreg(1) ///
     legend(on symxsize(small) pos(12) c(2) ///
       order(`legend') size(vsmall) title("Increase in Daily Patients per Percent Correct" , size(small))) ///
     dotsplotopt(m(.)) ysize(6) xoverhang ///
@@ -118,7 +177,7 @@ use "${git}/constructed/capacity.dta" , clear
 
     graph export "${git}/outputs/main/f-raw-correlations.png" , replace
 
-// Figure 6,7. Correlations in data between caseload and competence (Optimized)
+// Figure 6. Correlations in data between caseload and competence (Optimized)
 use "${git}/constructed/capacity.dta" , clear
 
   bys country: egen check = sum(cap)
@@ -138,7 +197,7 @@ use "${git}/constructed/capacity.dta" , clear
     mat a = r(table)
     local old = a[1,1]
 
-  keep treat country hf_type pweight weight irt cap
+  keep treat country hf_type pweight weight irt cap hf_provs hf_provs_vig
 
   bys country hf_type (irt): gen srno = _n
     tempfile irtrank
@@ -154,68 +213,15 @@ use "${git}/constructed/capacity.dta" , clear
    local new = a[1,1]
 
   tw (histogram treat , w(.0625) start(0) gap(10) lw(none) fc(gs12) yaxis(2) percent) ///
-    (lowess cap_old treat  , lc(black) lw(thick)) ///
+    (lowess cap_old treat , lc(black) lw(thick)) ///
     (lowess cap_old treat_old , lp(dash) lw(thick) lc(black)) ///
-    (pci 0 `new' 20 `new' , yaxis(2) lc(black) lw(thick)) ///
-    (pci 0 `old' 20 `old' , yaxis(2) lc(black) lw(thick) lp(dash)) ///
-  ,  yscale(alt) yscale(alt  axis(2)) ytitle("Percentage of Providers (Histogram)" , axis(2)) ///
-    ytitle("Patients per Provider Day") xtit("Share of Vignettes Correct (Vertical Lines = Means)") ///
-    legend(on pos(12) order(3 "Observed in Survey" 2 "Optimal Provider Allocation") size(small) region(lp(blank))) ///
-    ylab(0(100)600) ylab(0(5)20 , axis(2)) xlab(${pct})
+  ,  by(country, c(2) yrescale legend(pos(12)) note(" ") ixaxes imargin(0)) ///
+    yscale(alt) yscale(alt  axis(2)) ytitle("Percentage of Providers (Histogram)" , axis(2)) ///
+    ytitle("") xtit("{&uarr} L Axis: Patients/Day (Lines) -- X Axis: Vignettes Correct -- R Axis: % of Providers (Histogram) {&uarr}", size(vsmall)) ///
+    legend(on pos(12) order(3 "Observed" 2 "Reallocated") size(small) region(lp(blank))) ///
+    ylab(#4, axis(2)) xlab(${pct}) legend(off) ysize(6) subtitle(,fc(none) lc(none))
 
     graph export "${git}/outputs/main/f-optimization.png" , replace
 
-  tw ///
-    (kdensity treat_old [aweight=weight]  , lc(black) lw(thick) lp(dash)) ///
-    (kdensity treat [aweight=weight] , lc(black) lw(thick)) ///
-    (pci 0 `new' 3 `new' , yaxis(2) lc(black) lw(thick)) ///
-    (pci 0 `old' 3 `old' , yaxis(2) lc(black) lw(thick) lp(dash)) ///
-    , yscale(off  axis(2)) legend(on pos(12) size(small) order(1 "Observed in Survey" 2 "Optimal Patient Distribution")) ///
-      ytit("Density of Patient Distribution") xtit("Share of Vignettes Correct (Vertical Lines = Means)") xlab(${pct}) xoverhang
-
-      graph export "${git}/outputs/main/f-optimization-pat.png" , replace
-
-// Figure 8: Optimal allocation impacts
-
-use "${git}/constructed/capacity.dta" , clear
-
-  egen vig = rowmean(treat?)
-  reg vig c.irt##i.country##i.hf_type
-  drop vig
-    predict vig
-    replace vig = 0 if vig < 0
-
-  preserve
-  gsort country hf_type -irt
-    keep country hf_type irt vig
-    ren vig vig_hftype
-    ren irt irt_hftype
-    gen ser_hftype = _n
-    tempfile irt
-    save `irt' , replace
-  restore
-
-  gsort country hf_type -cap
-    gen ser_hftype = _n
-    merge 1:1 ser_hftype using `irt' , nogen
-
-  clonevar weight = cap
-  expand 2 , gen(pat)
-
-  replace vig = vig_hftype if pat == 1
-
-  lab def pat 0 "Observed" 1 "Reallocated"
-    lab val pat pat
-
-  graph box vig [aweight=weight] , hor ///
-    over(pat,  axis(noline))  over(country , sort(1)) ///
-    noout note(" ")  ///
-    box(1 , lc(black) lw(thin)) ///
-    marker(1, m(p) mc(black) msize(tiny)) medtype(cline) medline(lc(red) lw(medthick)) ///
-    inten(0) cwhi lines(lw(thin) lc(black)) ///
-    ylab(${pct}) ///
-    ytit("Vignettes Correctly Treated by Provider")
-
-  graph export "${git}/outputs/main/f-optimization-change.png" , replace
 
 // End

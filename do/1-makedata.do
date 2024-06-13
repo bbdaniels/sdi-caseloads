@@ -255,8 +255,18 @@ use "${git}/data/uganda.dta" , clear
   replace cadre = 1 if cadre == 4 & inlist(provider_mededuc1,3,4)
 
   // Staff count
+  egen ftag = tag(country year hf_id)
+    lab var ftag "Facility Tag"
   bys country year hf_id : gen hf_provs = _N
     lab var hf_provs "Observed Providers"
+
+    gen check = hf_provs/hf_staff_op if hf_staff_op < 11 & ftag == 1
+     su check if hf_staff_op > 1
+     gen temp = hf_staff_op*`r(mean)'
+     ren hf_provs hf_provs_vig
+     clonevar hf_provs = hf_provs_vig
+       replace hf_provs = temp if hf_staff_op > 10
+       drop temp check
 
   *Order the variables
   isid country year hf_id prov_id, sort
@@ -266,29 +276,43 @@ use "${git}/data/uganda.dta" , clear
     lab var fid "Facility ID"
   order country year fid uid hf_id prov_id , first
 
-  drop if hf_outpatient == 0
-  gen cap = hf_outpatient/(60*hf_provs)
-    lab var cap "Outpatients per Provider Day"
+  drop if hf_outpatient == 0 | missing(hf_outpatient)
 
-    drop if cap == .
+  *  Create facility level dataset
+  preserve
+  labelcollapse ///
+    (firstnm) hf_provs country year hf_staff_op hf_outpatient hf_type ///
+    , by(fid) vallab(country hf_type)
 
-  *Save final dataset with new variables added
+    gen cap = hf_outpatient/(60)
+      lab var cap "Outpatients per Facility Day"
+
+      clonevar cap_raw = cap
+      winsor2 cap , cuts(0 97.5) replace by(country)
+
+    gen cap_prov = hf_outpatient/(60*hf_provs)
+      lab var cap_prov "Outpatients per Provider Day"
+
+      clonevar cap_prov_raw = cap_prov
+      winsor2 cap_prov , cuts(0 97.5) replace by(country)
+
+    save "${git}/constructed/capacity-fac.dta", replace
+    use "${git}/constructed/capacity-fac.dta", clear
+
+      drop cap cap_raw
+      ren (cap_prov cap_prov_raw)(cap cap_raw)
+
+      lab var cap "Outpatients per Provider Day"
+      lab var cap_raw "Outpatients per Provider Day (Unwinsorized)"
+
+      tempfile fac
+        save `fac'
+  restore
+
+  *  Back to providers
+  merge m:1 fid using `fac' , nogen
+
   save "${git}/constructed/capacity.dta", replace
   use "${git}/constructed/capacity.dta", clear
-
-*  Create facility level dataset
-
-  replace hf_provs = 1
-    lab var hf_provs "Observed Providers"
-  labelcollapse (sum) hf_provs (firstnm) country year hf_staff_op hf_outpatient hf_type , by(fid) vallab(country hf_type)
-
-  gen cap = hf_outpatient/(60)
-    lab var cap "Outpatients per Facility Day"
-
-  gen cap_prov = hf_outpatient/(60*hf_provs)
-    lab var cap_prov "Outpatients per Provider Day"
-
-  save "${git}/constructed/capacity-fac.dta", replace
-
 
 ************************ End of do-file *****************************************
