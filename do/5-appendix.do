@@ -6,9 +6,9 @@ use "${git}/constructed/capacity-fac.dta" , clear
   replace hf_staff_op = 11 if hf_staff_op > 10
   drop if hf_staff_op == 0
 
-  tw (scatter  hf_provs_vig hf_staff_op if hf_staff_op > 0 & hf_provs_vig <= 10  ///
+  tw (scatter  hf_provs_vig hf_staff_op if hf_staff_op > 0 & hf_staff_op <= 10  ///
       , jitter(7) msize(vtiny) m(.) mc(black)) ///
-     (scatter hf_provs_vig hf_staff_op if hf_staff_op > 0 & hf_provs_vig > 10  ///
+     (scatter hf_provs_vig hf_staff_op if hf_staff_op > 0 & hf_staff_op > 10  ///
          , jitter(7) msize(vtiny) m(.) mc(red)) ///
      (lfit hf_provs_vig hf_staff_op  ///
          , lc(red) lw(thick)) ///
@@ -249,68 +249,94 @@ use "${git}/constructed/capacity-fac.dta" if hf_staff_op < 11 , clear
              "Patients per Provider Day" "(Average Patient)")
 
 // Table: Regressions
-  use "${git}/constructed/capacity-fac.dta" if hf_staff_op < 11 , clear
+use "${git}/constructed/capacity-fac.dta" if hf_staff_op < 11, clear
 
-    replace hf_type = 0 if hf_type == 6
+  replace hf_type = 0 if hf_type == 6
 
-    bys country: gen weight = 1/_N
-    reg cap          b0.hf_type  [pweight=weight] , a(country)
-      est sto reg11
-      test 1.hf_type - 4.hf_type = 0
-        estadd scalar hos = `r(p)' : reg11
-      test 2.hf_type - 5.hf_type = 0
-        estadd scalar cli = `r(p)' : reg11
-
-    reg cap hf_provs b0.hf_type [pweight=weight] , a(country)
-      est sto reg21
-      test 1.hf_type - 4.hf_type = 0
-        estadd scalar hos = `r(p)' : reg21
-      test 2.hf_type - 5.hf_type = 0
-        estadd scalar cli = `r(p)' : reg21
-
-    reg cap_prov hf_provs b0.hf_type  [pweight=weight] , a(country)
-      est sto reg31
-      test 1.hf_type - 4.hf_type = 0
-        estadd scalar hos = `r(p)' : reg31
-      test 2.hf_type - 5.hf_type = 0
-        estadd scalar cli = `r(p)' : reg31
-
-  use "${git}/constructed/capacity.dta" if hf_staff_op < 11 , clear
   bys country: gen weight = 1/_N
-     drop if provider_mededuc1 == 1
+  reg cap          b0.hf_type  [pweight=weight] , a(country)
+    est sto reg11
+    test 1.hf_type - 4.hf_type = 0
+      estadd scalar hos = `r(p)' : reg11
+    test 2.hf_type - 5.hf_type = 0
+      estadd scalar cli = `r(p)' : reg11
 
-    egen vig = rowmean(treat?)
-    reg vig c.irt##i.country##i.hf_type
-    drop vig
-      predict vig
-      replace vig = 0 if vig < 0
-      replace vig = 100*vig
+  reg cap b0.hf_type hf_provs [pweight=weight] , a(country)
+    est sto reg21
+    test 1.hf_type - 4.hf_type = 0
+      estadd scalar hos = `r(p)' : reg21
+    test 2.hf_type - 5.hf_type = 0
+      estadd scalar cli = `r(p)' : reg21
 
-    replace hf_type = 0 if hf_type == 6
-    replace cadre = 0 if cadre == 4
-    egen fuid = group(country fid)
+  gen w2 = weight*hf_provs
+  bys country: egen sum = sum(w2)
+  replace weight = w2/sum
+  replace cap = cap_prov
 
-    areg cap b0.cadre i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
-    est sto reg1
+  reg cap b0.hf_type  [pweight=weight] , a(country)
+    est sto reg31
+    test 1.hf_type - 4.hf_type = 0
+      estadd scalar hos = `r(p)' : reg31
+    test 2.hf_type - 5.hf_type = 0
+      estadd scalar cli = `r(p)' : reg31
 
-    areg cap hf_provs b0.hf_type b0.cadre  i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
-    est sto reg2
-      test 1.hf_type - 4.hf_type = 0
-        estadd scalar hos = `r(p)' : reg2
-      test 2.hf_type - 5.hf_type = 0
-        estadd scalar cli = `r(p)' : reg2
+  reg cap b0.hf_type hf_provs [pweight=weight] , a(country)
+    est sto reg41
+    test 1.hf_type - 4.hf_type = 0
+      estadd scalar hos = `r(p)' : reg41
+    test 2.hf_type - 5.hf_type = 0
+      estadd scalar cli = `r(p)' : reg41
 
-    areg cap vig hf_provs b0.hf_type b0.cadre  i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
-    est sto reg3
-      test 1.hf_type - 4.hf_type = 0
-        estadd scalar hos = `r(p)' : reg3
-      test 2.hf_type - 5.hf_type = 0
-        estadd scalar cli = `r(p)' : reg3
+use "${git}/constructed/capacity.dta" if hf_staff_op < 11, clear
+drop if provider_mededuc1 == 1
 
-  outwrite reg3 reg11 reg21 reg31 reg1 reg2 reg3      ///
-    using "${git}/outputs/appendix/at-regs-capacity.xlsx" ///
-  , replace stats(N r2 hos cli) ///
-    colnames("X" "1" "2" "3" "4" "5" "6")
+qui areg cap  hf_provs b0.hf_type b0.cadre  i.provider_mededuc1  , a(country)
+  drop if !e(sample)
+
+gen ratio = hf_provs/hf_provs_vig
+bys country: egen sum = sum(ratio)
+bys country: gen weight = ratio/sum
+
+  egen vig = rowmean(treat?)
+  reg vig c.irt##i.country##i.hf_type
+  drop vig
+    predict vig
+    replace vig = 0 if vig < 0
+    replace vig = 100*vig
+
+  replace hf_type = 0 if hf_type == 6
+  replace cadre = 0 if cadre == 3
+  egen fuid = group(country fid)
+
+  areg cap b0.cadre i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
+  est sto reg1
+
+  areg cap  b0.hf_type b0.cadre  i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
+  est sto reg2
+    test 1.hf_type - 4.hf_type = 0
+      estadd scalar hos = `r(p)' : reg2
+    test 2.hf_type - 5.hf_type = 0
+      estadd scalar cli = `r(p)' : reg2
+
+  areg cap hf_provs b0.hf_type b0.cadre  i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
+  est sto reg3
+    test 1.hf_type - 4.hf_type = 0
+      estadd scalar hos = `r(p)' : reg3
+    test 2.hf_type - 5.hf_type = 0
+      estadd scalar cli = `r(p)' : reg3
+
+  areg cap vig hf_provs b0.hf_type b0.cadre  i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
+  est sto reg4
+    test 1.hf_type - 4.hf_type = 0
+      estadd scalar hos = `r(p)' : reg4
+    test 2.hf_type - 5.hf_type = 0
+      estadd scalar cli = `r(p)' : reg4
+
+outwrite reg4 reg11 reg21 reg31 reg41 reg1 reg2 reg3 reg4     ///
+  using "${git}/outputs/appendix/at-regs-capacity.xlsx" ///
+, replace stats(N r2 hos cli) ///
+  colnames("X" "1" "2" "3" "4" "5" "6" "7" "8")
+
 
 
 // Tables of comparative statistics
