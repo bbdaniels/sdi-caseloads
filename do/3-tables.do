@@ -59,23 +59,41 @@ use "${git}/constructed/capacity-fac.dta" , clear
       test 2.hf_type - 5.hf_type = 0
         estadd scalar cli = `r(p)' : reg11
 
-    reg cap hf_provs b0.hf_type [pweight=weight] , a(country)
+    reg cap b0.hf_type hf_provs [pweight=weight] , a(country)
       est sto reg21
       test 1.hf_type - 4.hf_type = 0
         estadd scalar hos = `r(p)' : reg21
       test 2.hf_type - 5.hf_type = 0
         estadd scalar cli = `r(p)' : reg21
 
-    reg cap_prov hf_provs b0.hf_type  [pweight=weight] , a(country)
+    gen w2 = weight*hf_provs
+    bys country: egen sum = sum(w2)
+    replace weight = w2/sum
+    replace cap = cap_prov
+
+    reg cap b0.hf_type  [pweight=weight] , a(country)
       est sto reg31
       test 1.hf_type - 4.hf_type = 0
         estadd scalar hos = `r(p)' : reg31
       test 2.hf_type - 5.hf_type = 0
         estadd scalar cli = `r(p)' : reg31
 
+    reg cap b0.hf_type hf_provs [pweight=weight] , a(country)
+      est sto reg41
+      test 1.hf_type - 4.hf_type = 0
+        estadd scalar hos = `r(p)' : reg41
+      test 2.hf_type - 5.hf_type = 0
+        estadd scalar cli = `r(p)' : reg41
+
   use "${git}/constructed/capacity.dta" , clear
-  bys country: gen weight = 1/_N
-     drop if provider_mededuc1 == 1
+  drop if provider_mededuc1 == 1
+
+  qui areg cap  hf_provs b0.hf_type b0.cadre  i.provider_mededuc1  , a(country)
+    drop if !e(sample)
+
+  gen ratio = hf_provs/hf_provs_vig
+  bys country: egen sum = sum(ratio)
+  bys country: gen weight = ratio/sum
 
     egen vig = rowmean(treat?)
     reg vig c.irt##i.country##i.hf_type
@@ -91,24 +109,31 @@ use "${git}/constructed/capacity-fac.dta" , clear
     areg cap b0.cadre i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
     est sto reg1
 
-    areg cap hf_provs b0.hf_type b0.cadre  i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
+    areg cap  b0.hf_type b0.cadre  i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
     est sto reg2
       test 1.hf_type - 4.hf_type = 0
         estadd scalar hos = `r(p)' : reg2
       test 2.hf_type - 5.hf_type = 0
         estadd scalar cli = `r(p)' : reg2
 
-    areg cap vig hf_provs b0.hf_type b0.cadre  i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
+    areg cap hf_provs b0.hf_type b0.cadre  i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
     est sto reg3
       test 1.hf_type - 4.hf_type = 0
         estadd scalar hos = `r(p)' : reg3
       test 2.hf_type - 5.hf_type = 0
         estadd scalar cli = `r(p)' : reg3
 
-  outwrite reg3 reg11 reg21 reg31 reg1 reg2 reg3      ///
+    areg cap vig hf_provs b0.hf_type b0.cadre  i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
+    est sto reg4
+      test 1.hf_type - 4.hf_type = 0
+        estadd scalar hos = `r(p)' : reg4
+      test 2.hf_type - 5.hf_type = 0
+        estadd scalar cli = `r(p)' : reg4
+
+  outwrite reg4 reg11 reg21 reg31 reg41 reg1 reg2 reg3 reg4     ///
     using "${git}/outputs/main/t-regs-capacity.xlsx" ///
   , replace stats(N r2 hos cli) ///
-    colnames("X" "1" "2" "3" "4" "5" "6")
+    colnames("X" "1" "2" "3" "4" "5" "6" "7" "8")
 
 
 // Tables of comparative statistics

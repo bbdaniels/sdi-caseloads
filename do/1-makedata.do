@@ -281,7 +281,7 @@ use "${git}/data/uganda.dta" , clear
   *  Create facility level dataset
   preserve
   labelcollapse ///
-    (firstnm) hf_provs country year hf_staff_op hf_outpatient hf_type ///
+    (firstnm) hf_provs hf_provs_vig country year hf_staff_op hf_outpatient hf_type ///
     , by(fid) vallab(country hf_type)
 
     gen cap = hf_outpatient/(60)

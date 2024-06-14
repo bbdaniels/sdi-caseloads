@@ -6,9 +6,9 @@ use "${git}/constructed/capacity-fac.dta" , clear
   replace hf_staff_op = 11 if hf_staff_op > 10
   drop if hf_staff_op == 0
 
-  tw (scatter  hf_provs_vig hf_staff_op if hf_staff_op > 0 & hf_provs < 10  ///
+  tw (scatter  hf_provs_vig hf_staff_op if hf_staff_op > 0 & hf_provs_vig <= 10  ///
       , jitter(7) msize(vtiny) m(.) mc(black)) ///
-     (scatter hf_provs_vig hf_staff_op if hf_staff_op > 0 & hf_provs >= 10  ///
+     (scatter hf_provs_vig hf_staff_op if hf_staff_op > 0 & hf_provs_vig > 10  ///
          , jitter(7) msize(vtiny) m(.) mc(red)) ///
      (lfit hf_provs_vig hf_staff_op  ///
          , lc(red) lw(thick)) ///
@@ -35,6 +35,7 @@ use "${git}/constructed/capacity-fac.dta", clear
 
       local graphs `"`graphs' "\``country''"  "'
   }
+
   graph combine `graphs' , c(2) ysize(5) imargin(none)
 
   graph export "${git}/outputs/appendix/af-caseload.png" , width(3000) replace
