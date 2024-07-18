@@ -168,12 +168,12 @@ use "${git}/constructed/capacity.dta" , clear
       local p = r(table)[4,1]
         local p : di %3.2f `p'
 
-    local legend `"`legend' `x' "`label': `b' (p=`p')"  "'
+    local legend `"`legend' `x' "`label': `b' ({it:p}=`p')"  "'
   }
 
   binsreg  cap treat [aweight=hf_provs/hf_provs_vig], by(country) polyreg(1) ///
     legend(on symxsize(small) pos(12) c(2) ///
-      order(`legend') size(vsmall) title("Increase in Daily Patients per Percent Correct" , size(small))) ///
+      order(`legend') size(vsmall) title("Outpatient Caseload Increase per Percent Vignettes Correct" , size(vsmall))) ///
     dotsplotopt(m(.)) ysize(6) xoverhang ///
     xlab(${pct}) xtit("Vignettes Correctly Treated") ///
     ytit("Patients per Provider Day")
@@ -221,7 +221,7 @@ use "${git}/constructed/capacity.dta" , clear
   ,  by(country, c(2) yrescale legend(pos(12)) note(" ") ixaxes imargin(0)) ///
     yscale(alt) yscale(alt  axis(2)) ytitle("Percentage of Providers (Histogram)" , axis(2)) ///
     ytitle("") xtit("{&uarr} L Axis: Patients/Day (Lines) | X Axis: Vignettes Correct | R Axis: % of Providers (Histogram) {&uarr}", size(vsmall)) ///
-    legend(on pos(12) order(3 "Observed" 2 "Reallocated") size(small) region(lp(blank))) ///
+    legend(on pos(12) order(3 "Observed in Data" 2 "Optimally Reallocated") size(small) region(lp(blank))) ///
     ylab(#4, axis(2)) xlab(${pct}) legend(off) ysize(6) subtitle(,fc(none) lc(none))
 
     graph export "${git}/outputs/main/f-optimization.png" , replace
