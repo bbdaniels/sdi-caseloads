@@ -48,16 +48,23 @@ clear
     set seed `seed'
     qui q_up 360 30 10
       return list
-        local idle : di %3.2f `r(idle_time)'
+        local temp = `r(idle_time)' * 6
+
+        local idle : di %3.1f `temp'
         local wait : di %3.1f `r(mean_wait)'
+        local pats : di %3.0f `r(total_pats)'
 
       egen check = rownonmiss(q*)
       replace period = period/60
       gen zero = 0
-      tw (rarea check zero  period , lc(white%0) fc(gray) connect(stairstep))(line check period , lc(black) connect(stairstep))(scatter check period if service == . , mc(red) m(.)) ///
-        , ytit("Patients in Queue") yscale(r(0)) ylab(#6) ///
-          xtit("Idle Share: `idle' | Mean Wait: `wait' Min.") xlab(0 "Hours {&rarr}" 1 2 3 4 5 6 "Close") xoverhang ///
-          legend(on order(3 "No Patients" 2 "Serving Patients" 1 "Patients Waiting") r(1)  pos(12) ring(1) symxsize(small))
+      tw (rarea check zero  period , lc(white%0) fc(gray) connect(stairstep)) ///
+         (line check period , lc(black) connect(stairstep)) ///
+         (scatter check period if service != . & check == 0 , mc(black) m(.)) ///
+         (scatter check period if service == . , mc(red) m(.)) ///
+        , ytit("Patients Waiting in Queue") title("`pats' Patients in 6-Hour Day") yscale(r(0)) ylab(0(5)20) ///
+          xtit("Provider Idle Hours: `idle' | Mean Patient Wait: `wait' Min.") xlab(0 "Hours {&rarr}" 1 2 3 4 5 6 "Close") xoverhang ///
+          legend(on order(3 "Serving Patients" 4 "Idle: No Patients" 1 "Queue Length") ///
+                 r(1)  pos(12) ring(1) symxsize(small))
 
          graph save "${git}/outputs/temp/queue-`x'.gph" , replace
          local ++x
