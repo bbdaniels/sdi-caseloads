@@ -69,6 +69,10 @@ ssc install repkit, replace
     using "${git}/data/uganda.xlsx" ///
     , replace save sign reset
 
+  iecodebook export "${box}/poverty_rates.dta" ///
+    using "${git}/data/poverty_rates.xlsx" ///
+    , replace save sign reset
+
   copy "${box}/All_countries_harm.dta" ///
      "${git}/data/vignettes.dta" ///
     , replace

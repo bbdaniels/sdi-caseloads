@@ -22,11 +22,11 @@ use "${git}/constructed/capacity-fac.dta" , clear
     mat a = [r(Stat1) , r(Stat2) , r(Stat3) , r(Stat4) , r(Stat5) , r(Stat6) , r(Stat7) , r(Stat8) , r(Stat9) , r(Stat10)]'
     mat results = results, a
 
-  tabstat cap [aweight=cap], by(country) s(med) not save
+  tabstat cap_prov [aweight=hf_provs], by(country) s(med) not save
     mat a = [r(Stat1) , r(Stat2) , r(Stat3) , r(Stat4) , r(Stat5) , r(Stat6) , r(Stat7) , r(Stat8) , r(Stat9) , r(Stat10)]'
     mat results = results, a
 
-  tabstat cap_prov [aweight=hf_provs], by(country) s(med) not save
+  tabstat cap_prov [aweight=hf_provs], by(country) not save
     mat a = [r(Stat1) , r(Stat2) , r(Stat3) , r(Stat4) , r(Stat5) , r(Stat6) , r(Stat7) , r(Stat8) , r(Stat9) , r(Stat10)]'
     mat results = results, a
 
@@ -43,8 +43,8 @@ use "${git}/constructed/capacity-fac.dta" , clear
     rownames("Kenya" "Madagascar" "Malawi" "Mozambique" "Niger" ///
              "Nigeria" "Sierra Leone" "Tanzania" "Togo" "Uganda") ///
     colnames("Facilities (N)" "Providers per Facility" "Providers Present" ///
-             "Patients per Facility Day" "(Average Patient)" ///
-             "Patients per Provider Day" "(Average Patient)")
+             "Patients per Facility Day"  ///
+             "Patients per Provider Day" "Mean Provider" "Median Patient")
 
 // Table: Regressions
   use "${git}/constructed/capacity-fac.dta" , clear
@@ -66,24 +66,14 @@ use "${git}/constructed/capacity-fac.dta" , clear
       test 2.hf_type - 5.hf_type = 0
         estadd scalar cli = `r(p)' : reg21
 
-    gen w2 = weight*hf_provs
-    bys country: egen sum = sum(w2)
-    replace weight = w2/sum
-    replace cap = cap_prov
 
-    reg cap b0.hf_type  [pweight=weight] , a(country)
-      est sto reg31
-      test 1.hf_type - 4.hf_type = 0
-        estadd scalar hos = `r(p)' : reg31
-      test 2.hf_type - 5.hf_type = 0
-        estadd scalar cli = `r(p)' : reg31
+    areg cap_prov hf_provs b0.hf_type [pweight=weight] , a(country)
+    est sto reg1
+    test 1.hf_type - 4.hf_type = 0
+      estadd scalar hos = `r(p)' : reg1
+    test 2.hf_type - 5.hf_type = 0
+      estadd scalar cli = `r(p)' : reg1
 
-    reg cap b0.hf_type hf_provs [pweight=weight] , a(country)
-      est sto reg41
-      test 1.hf_type - 4.hf_type = 0
-        estadd scalar hos = `r(p)' : reg41
-      test 2.hf_type - 5.hf_type = 0
-        estadd scalar cli = `r(p)' : reg41
 
   use "${git}/constructed/capacity.dta" , clear
   drop if provider_mededuc1 == 1
@@ -106,17 +96,14 @@ use "${git}/constructed/capacity-fac.dta" , clear
     replace cadre = 0 if cadre == 3
     egen fuid = group(country fid)
 
-    areg cap b0.cadre i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
-    est sto reg1
-
-    areg cap  b0.hf_type b0.cadre  i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
+    areg cap  b0.hf_type [pweight=weight] , a(country) cl(fuid)
     est sto reg2
       test 1.hf_type - 4.hf_type = 0
         estadd scalar hos = `r(p)' : reg2
       test 2.hf_type - 5.hf_type = 0
         estadd scalar cli = `r(p)' : reg2
 
-    areg cap hf_provs b0.hf_type b0.cadre  i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
+    areg cap  b0.hf_type b0.cadre  i.provider_mededuc1 [pweight=weight] , a(country) cl(fuid)
     est sto reg3
       test 1.hf_type - 4.hf_type = 0
         estadd scalar hos = `r(p)' : reg3
@@ -130,10 +117,10 @@ use "${git}/constructed/capacity-fac.dta" , clear
       test 2.hf_type - 5.hf_type = 0
         estadd scalar cli = `r(p)' : reg4
 
-  outwrite reg4 reg11 reg21 reg31 reg41 reg1 reg2 reg3 reg4     ///
+  outwrite reg4 reg11 reg21 reg1 reg2 reg3 reg4     ///
     using "${git}/outputs/main/t-regs-capacity.xlsx" ///
   , replace stats(N r2 hos cli) ///
-    colnames("X" "1" "2" "3" "4" "5" "6" "7" "8")
+    colnames("X" "1" "2" "3" "4" "5" "6")
 
 
 // Tables of comparative statistics

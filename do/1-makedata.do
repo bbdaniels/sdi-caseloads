@@ -86,7 +86,7 @@ use "${git}/data/uganda.dta" , clear
   replace admin1_name_temp  = "Western"     if admin1_name_temp == "Western Rural" | admin1_name_temp == "Western Urban"
 
   sort   country admin1_name_temp
-  merge m:1 country admin1_name_temp using "${box}/poverty_rates.dta"
+  merge m:1 country admin1_name_temp using "${git}/data/poverty_rates.dta"
   drop if _merge ==2  // drop unmatched poverty rates from using dataset
   drop   _merge     // _merge no longer needed
 

@@ -2,21 +2,16 @@
 use "${git}/constructed/capacity.dta" , clear
 
   clonevar weight = cap
-  expand 2 , gen(pat)
 
-  replace weight = (hf_provs/hf_provs_vig) if pat == 0
-  replace weight = (cap*hf_provs/hf_provs_vig) if pat == 1
-
-  lab def pat 0 "Providers" 1 "Patients"
-    lab val pat pat
+  replace weight = (hf_provs/hf_provs_vig)
 
   graph box cap [aweight=weight] , hor ///
-    over(pat,  axis(noline))  over(country , sort(1)) ///
+    over(country , sort(1)) ///
     noout note(" ")  ///
     box(1 , lc(black) lw(thin)) ///
     marker(1, m(p) mc(black) msize(tiny)) medtype(cline) medline(lc(red) lw(medthick)) ///
     inten(0) cwhi lines(lw(thin) lc(black))  ///
-    ytit("Total Daily Outpatients Encountered")
+    ytit("Daily Outpatient Caseload per Provider")
 
   graph export "${git}/outputs/main/f-summary-capacity.png" , replace
 
@@ -28,7 +23,7 @@ clear
   foreach pats in 15 20 30 40 {
     qui q_up 360 `pats' 10
       return list
-        local temp = `r(idle_time)' * 6
+        local temp = 6 - `r(idle_time)' * 6
 
         local idle : di %3.1f `temp'
         local wait : di %3.1f `r(mean_wait)'
@@ -42,9 +37,9 @@ clear
        (scatter check period if service != . & check == 0 , mc(black) m(.)) ///
        (scatter check period if service == . , mc(red) m(.)) ///
      , ytit("Patients Waiting in Queue") title("`pats' Patients per 6-Hour Day") yscale(r(0)) ylab(0(1)8) ///
-       xtit("Provider Idle Hours: `idle' | Mean Patient Wait: `wait' Min.") ///
+       xtit("Provider Work Hours: `idle' | Mean Patient Wait: `wait' Min.") ///
        xlab(0 "Hours {&rarr}" 1 2 3 4 5 6 "Close") xoverhang ///
-       legend(on order(3 "Serving Patients" 4 "Idle: No Patients" 1 "Queue Length") ///
+       legend(on order(3 "Serving Patients" 4 "No Patients" 1 "Queue Length") ///
               r(1)  pos(12) ring(1) symxsize(small))
 
       graph save "${git}/outputs/temp/queue-`x'.gph" , replace
@@ -90,7 +85,7 @@ save `results' , emptyok
     order(1 "15 Patients/Day" 2 "20 Patients/Day" 3 "30 Patients/Day" 4 "40 Patients/Day")) ///
     xtit("Mean Waiting Time for Serviced Patients (Minutes)") xscale(log) ///
     xlab(1.25 "No Wait" 2.5 5 10 20 40 80) ///
-    ytit("Idle Time for Provider") ylab(1 "100%" .75 "75%" .5 "50%" .25 "25%" 0 "0%")
+    ytit("Excess Capacity for Provider") ylab(1 "100%" .75 "75%" .5 "50%" .25 "25%" 0 "0%")
 
     graph export "${git}/outputs/main/f-queue-simulations.png" , width(3000) replace
 
@@ -155,6 +150,16 @@ use "${git}/constructed/capacity.dta" , clear
 
   egen treat = rowmean(treat?)
 
+    bys country: gen weight = 1/_N
+
+    reg cap treat i.country  b0.hf_type [pweight=weight] , cl(fid)
+    local b = _b[treat] / 100
+      local totalb : di %3.2f `b'
+    local p = r(table)[4,1]
+      local totalp : di %3.2f `p'
+
+      drop if country ==
+
   levelsof country, local(c)
   local x = 0
   local legend ""
@@ -162,7 +167,7 @@ use "${git}/constructed/capacity.dta" , clear
     local ++x
     local ++x
     local label : label (country) `country'
-    reg cap treat if country == `country' , cl(fid)
+    reg cap treat if country == `country' [pweight=weight] , cl(fid)
       local b = _b[treat] / 100
         local b : di %3.2f `b'
       local p = r(table)[4,1]
@@ -173,7 +178,8 @@ use "${git}/constructed/capacity.dta" , clear
 
   binsreg  cap treat [aweight=hf_provs/hf_provs_vig], by(country) polyreg(1) ///
     legend(on symxsize(small) pos(12) c(2) ///
-      order(`legend') size(vsmall) title("Outpatient Caseload Increase per Percent Vignettes Correct" , size(vsmall))) ///
+      order(`legend')  size(vsmall) ///
+      title("Overall Caseload Increase per Percent Vignettes Correct: `totalb' ({it:p}=`totalp')" , size(vsmall))) ///
     dotsplotopt(m(.)) ysize(6) xoverhang ///
     xlab(${pct}) xtit("Vignettes Correctly Treated") ///
     ytit("Patients per Provider Day")
